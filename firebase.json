@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "database": "ai-studio-algeriancommerce-527592e2-9cc3-41f9-bd9e-cd008c0fdeef"
+  }
+}

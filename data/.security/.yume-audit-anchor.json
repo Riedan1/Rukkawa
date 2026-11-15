@@ -1,0 +1,9 @@
+{
+  "checkpointId": "chk_1794772510662",
+  "ledgerLength": 8,
+  "lastEntryId": "aud_1794772510662_c5b6a5",
+  "lastIntegrityHash": "2faf27586bb8a472d35250b95969695902fe585f284000995986178f235bd87f",
+  "cumulativeRootHash": "90c6d6a7a7c7282277faa6c27f2ef86729afaef9d3145c4cb8b5d7fd9d0a2cdb",
+  "createdAt": "2026-11-15T19:55:10.662Z",
+  "hmacSignature": "d455f6f5c8395cab6a5f7c66f702dd1876e919382cbe18db10deb05543dfc12c"
+}

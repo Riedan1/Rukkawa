@@ -1,0 +1,219 @@
+{
+  "stores": [],
+  "orders": [
+    {
+      "id": "ORD-2026-9812",
+      "storeId": "store_alger_1",
+      "storeName": "El Bahdja Craft & Leather",
+      "customerName": "Karim Bouzid",
+      "customerPhone": "0550123456",
+      "shippingAddress": "Rue 14, Villa 8, Hydra",
+      "wilaya": "16 - Alger",
+      "wilayaId": 16,
+      "commune": "Hydra",
+      "deliveryType": "home_delivery",
+      "deliveryCompany": "Yalidine Fast Express",
+      "trackingCode": "YAL-16948201-DZ",
+      "status": "pending_confirmation",
+      "paymentMode": "cod",
+      "totalPrice": 8400,
+      "currency": "DZD",
+      "createdAt": "2026-10-09T18:30:00.000Z",
+      "confirmationMeta": {
+        "callInitiatedAt": null,
+        "whatsappSentAt": null,
+        "confirmedByMerchantAt": null,
+        "operatorNotes": ""
+      },
+      "items": [
+        {
+          "id": "prod_1",
+          "name": "Smart Watch Ultra Plus",
+          "price": 7650,
+          "quantity": 1,
+          "imageUrl": "https://images.unsplash.com/photo-1544117519-31a4b719223d?w=600&auto=format&fit=crop&q=80"
+        }
+      ]
+    },
+    {
+      "id": "ORD-2026-9813",
+      "storeId": "store_oran_2",
+      "storeName": "Wahran Artisanat & Cuir",
+      "customerName": "Amira Mansouri",
+      "customerPhone": "0661987654",
+      "shippingAddress": "Cité 1500 Logements, Bâtiment C",
+      "wilaya": "31 - Oran",
+      "wilayaId": 31,
+      "commune": "Es Senia",
+      "deliveryType": "stop_desk",
+      "deliveryCompany": "ZR Express",
+      "trackingCode": "ZR-31849202-DZ",
+      "status": "confirmed_by_phone",
+      "paymentMode": "cod",
+      "totalPrice": 12500,
+      "currency": "DZD",
+      "createdAt": "2026-10-09T19:15:00.000Z",
+      "confirmationMeta": {
+        "callInitiatedAt": "2026-10-09T19:20:00.000Z",
+        "whatsappSentAt": null,
+        "confirmedByMerchantAt": "2026-10-09T19:22:00.000Z",
+        "operatorNotes": "Client confirmed delivery address and availability tomorrow afternoon."
+      },
+      "items": [
+        {
+          "id": "prod_2",
+          "name": "Wireless ANC Headphones",
+          "price": 11800,
+          "quantity": 1,
+          "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80"
+        }
+      ]
+    }
+  ],
+  "shipments": [],
+  "coupons": [],
+  "lastUpdated": "2026-11-13T15:54:28.185Z",
+  "users": [
+    {
+      "id": "usr_1792945452124_6pc1oe",
+      "name": "Amira Bensalem",
+      "fullName": "Amira Bensalem",
+      "email": "amira.bensalem@yume.dz",
+      "phone": "+213 555123456",
+      "role": "Buyer",
+      "accountType": "YUME Member",
+      "agreedToTerms": true,
+      "passwordHash": "eXVtZV9zYWx0X1l1bWUyMDI2U2VjdXJlIQ==",
+      "createdAt": "2026-10-25T16:24:12.124Z",
+      "updatedAt": "2026-10-25T16:24:12.124Z"
+    }
+  ],
+  "products": [],
+  "domains": [],
+  "domainSettings": {
+    "enforceSubscriptionLimits": true,
+    "planLimits": {
+      "Basic": 0,
+      "Pro": 1,
+      "Pro Plus": 3,
+      "Premium": 10,
+      "Premium Plus": "unlimited"
+    },
+    "cloudflareIntegration": {
+      "enabled": true,
+      "zoneIdConfigured": true,
+      "customHostnameSsl": true,
+      "edgeCachingEnabled": true,
+      "ddosProtectionLevel": "high",
+      "rateLimitRps": 250,
+      "cacheTtlSeconds": 3600
+    },
+    "updatedAt": "2026-11-13T14:26:53.457Z"
+  },
+  "governanceState": {
+    "auditLogs": [
+      {
+        "id": "aud_1794580764583_73b842",
+        "timestamp": "2026-11-13T14:39:24.583Z",
+        "actorUid": "adm_super_owner",
+        "actorEmail": "th3p2000@gmail.com",
+        "actorRole": "super_admin",
+        "module": "security",
+        "action": "ADMIN_SESSION_AUTHENTICATED",
+        "targetEntityType": "admin",
+        "targetEntityId": "adm_super_owner",
+        "marketScope": "ALL_MARKETS",
+        "reason": "Authenticated server-side admin session (super_admin) with MFA verification.",
+        "actorName": "Platform Owner (Super Admin)",
+        "actionType": "ADMIN_SESSION_AUTHENTICATED",
+        "targetType": "admin",
+        "targetId": "adm_super_owner",
+        "targetEntityLabel": "Platform Owner (Super Admin)",
+        "targetName": "Platform Owner (Super Admin)",
+        "summary": "Authenticated server-side admin session (super_admin) with MFA verification.",
+        "previousValue": null,
+        "newValue": null,
+        "beforeState": null,
+        "afterState": null,
+        "mfaConfirmed": true,
+        "chainIndex": 3,
+        "previousHash": "f2347d416d0490ea3d69f815a14e389fe884ff87b9bf9f0a818a0cadaba3854f",
+        "integrityHash": "6e4473ebf3f2bb09d163e2c4531e56b542d74d74e0e6abac134aa2c2c2f7a7ba"
+      },
+      {
+        "id": "aud_20261112_003",
+        "timestamp": "2026-11-12T09:00:00.000Z",
+        "actorUid": "adm_trust_safety_lead",
+        "actorName": "Amine Khelifi (Trust & Safety Lead)",
+        "actorEmail": "trust.safety@yume.network",
+        "actorRole": "trust_and_safety",
+        "module": "stores",
+        "action": "ENFORCEMENT_ENGINE_READY",
+        "targetEntityType": "system",
+        "targetEntityId": "ENFORCEMENT_V2",
+        "targetEntityLabel": "4-Stage Merchant Enforcement & Appeals",
+        "marketScope": "ALL_MARKETS",
+        "reason": "Activated server-authoritative Warning, Restricted, Suspended, and Terminated state gates.",
+        "mfaConfirmed": true,
+        "actionType": "ENFORCEMENT_ENGINE_READY",
+        "targetType": "system",
+        "targetId": "ENFORCEMENT_V2",
+        "targetName": "4-Stage Merchant Enforcement & Appeals",
+        "summary": "Activated server-authoritative Warning, Restricted, Suspended, and Terminated state gates.",
+        "chainIndex": 2,
+        "previousHash": "e88e95f78ed8ccebe1a46e1f3f14123c0053c241f8904d4c7c9ca6ca958ff3f1",
+        "integrityHash": "f2347d416d0490ea3d69f815a14e389fe884ff87b9bf9f0a818a0cadaba3854f"
+      },
+      {
+        "id": "aud_20261112_002",
+        "timestamp": "2026-11-12T08:45:00.000Z",
+        "actorUid": "adm_market_ops_mena",
+        "actorName": "Yasmine Mansouri (Maghreb & MENA Ops)",
+        "actorEmail": "ops.maghreb@yume.network",
+        "actorRole": "market_operations",
+        "module": "global_markets",
+        "action": "VERIFY_REGIONAL_MARKETS",
+        "targetEntityType": "market",
+        "targetEntityId": "DZ_MA_TN_EG",
+        "targetEntityLabel": "Algeria, Morocco, Tunisia, Egypt",
+        "marketScope": "DZ",
+        "reason": "Confirmed regional currency, phone prefix, and cultural color palette synchronization.",
+        "mfaConfirmed": true,
+        "actionType": "VERIFY_REGIONAL_MARKETS",
+        "targetType": "market",
+        "targetId": "DZ_MA_TN_EG",
+        "targetName": "Algeria, Morocco, Tunisia, Egypt",
+        "summary": "Confirmed regional currency, phone prefix, and cultural color palette synchronization.",
+        "chainIndex": 1,
+        "previousHash": "22ee34fed22977c24ea28c86d322fea7534806ca00412b7207b6ba8f397cf2bb",
+        "integrityHash": "e88e95f78ed8ccebe1a46e1f3f14123c0053c241f8904d4c7c9ca6ca958ff3f1"
+      },
+      {
+        "id": "aud_20261112_001",
+        "timestamp": "2026-11-12T08:30:00.000Z",
+        "actorUid": "adm_super_owner",
+        "actorName": "Platform Owner (Super Admin)",
+        "actorEmail": "th3p2000@gmail.com",
+        "actorRole": "super_admin",
+        "module": "subscriptions",
+        "action": "UNIFY_CANONICAL_PLANS",
+        "targetEntityType": "plan",
+        "targetEntityId": "ALL_5_PLANS",
+        "targetEntityLabel": "Basic · Pro · Pro Plus · Premium · Premium Plus",
+        "marketScope": "ALL_MARKETS",
+        "reason": "Initialized unified 5-tier canonical subscription plan & entitlements registry.",
+        "mfaConfirmed": true,
+        "actionType": "UNIFY_CANONICAL_PLANS",
+        "targetType": "plan",
+        "targetId": "ALL_5_PLANS",
+        "targetName": "Basic · Pro · Pro Plus · Premium · Premium Plus",
+        "summary": "Initialized unified 5-tier canonical subscription plan & entitlements registry.",
+        "chainIndex": 0,
+        "previousHash": "GENESIS_YUME_AUDIT_CHAIN",
+        "integrityHash": "22ee34fed22977c24ea28c86d322fea7534806ca00412b7207b6ba8f397cf2bb"
+      }
+    ],
+    "updatedAt": "2026-11-13T14:39:24.583Z"
+  },
+  "returns": []
+}

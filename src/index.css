@@ -1,0 +1,1271 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Hide main page browser scrollbar while keeping scroll functionality & eliminate horizontal spill */
+html, body {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  max-width: 100vw;
+  overflow-x: clip;
+}
+
+#root {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* ==========================================
+   GLOBAL DIRECTIONAL (RTL/LTR) & TYPOGRAPHY
+   ========================================== */
+
+/* LTR Alignment (Default / English / French) */
+html[dir="ltr"],
+body[dir="ltr"],
+[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* RTL Alignment & Layout Adjustments (Arabic) */
+html[dir="rtl"],
+body[dir="rtl"],
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Form controls in RTL */
+[dir="rtl"] input:not([type="checkbox"]):not([type="radio"]),
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="ltr"] input:not([type="checkbox"]):not([type="radio"]),
+[dir="ltr"] textarea,
+[dir="ltr"] select {
+  text-align: left;
+  direction: ltr;
+}
+
+/* Bidirectional flex/grid & alignment helper utilities */
+[dir="rtl"] .rtl\:text-right {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl\:text-left {
+  text-align: left;
+}
+
+[dir="rtl"] .rtl\:flex-row-reverse {
+  flex-direction: row-reverse;
+}
+
+/* Global Sentence Case Rule for UI Navigation & Section Headers */
+header nav,
+header h1, header h2, header h3, header h4, header h5, header h6,
+nav,
+.nav-item,
+section h1, section h2, section h3, section h4, section h5, section h6,
+.sentence-case {
+  text-transform: none;
+}
+
+/* Sentence case styling utility */
+.sentence-case::first-letter {
+  text-transform: uppercase;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar,
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.28);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.5);
+  }
+
+  .skinny-faded-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+  }
+  .skinny-faded-scrollbar::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  .skinny-faded-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .skinny-faded-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.28);
+    border-radius: 9999px;
+  }
+  .skinny-faded-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(100, 116, 139, 0.5);
+  }
+}
+
+#merchant-mode-workspace,
+#merchant-profile-modal-backdrop {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+#product-preview-modal-root {
+  max-width: 100vw;
+  width: 100vw;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+#product-preview-modal-root::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+#product-preview-modal-root::-webkit-scrollbar-track {
+  background: transparent;
+}
+#product-preview-modal-root::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+#product-preview-modal-root::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.7);
+}
+
+/* Strict mobile and tablet horizontal scroll deactivation on preview */
+@media (max-width: 1024px) {
+  #product-preview-modal-root {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    max-width: 100vw !important;
+    width: 100vw !important;
+    overscroll-behavior-x: none !important;
+    touch-action: pan-y !important;
+  }
+
+  #product-preview-modal-root > header {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+
+  #product-preview-store-banner-header {
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+  }
+
+  #product-preview-modal-root > main {
+    max-width: 100vw !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Main platform header container on mobile */
+  #main-studio-header {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* ==========================================================================
+   GLOBAL RESPONSIVE DESIGN: FLEXBOX & MEDIA QUERIES
+   Standardized Flexible Containers & Single-Line Navigation Bars / Menus
+   (Strict Exception: Merchant Space Page & All Dashboards)
+   ========================================================================== */
+
+/* 1. Global Flexible Container Standardization */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Ensure flexible containers do not wrap or blow out their boundaries */
+.flex-standard-container,
+.nav-container-flexible {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* 2. Global Single-Line Navigation Bars & Horizontal Menus across all screen sizes */
+/* Applied to all platform navigation bars, tab bars, filter bars, and horizontal menus */
+header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav,
+nav.horizontal-nav,
+nav.nav-horizontal,
+.horizontal-menu,
+.horizontal-nav,
+.nav-horizontal,
+.nav-horizontal-nowrap,
+.nav-bar-row,
+.tab-bar-container,
+.filter-tabs-bar,
+.category-filter-row,
+.horizontal-chips-bar,
+#tab-controls,
+#profile-tab-switch-container {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* Scrollable button strips allow horizontal scrolling without clipping */
+#tab-controls,
+#profile-tab-switch-container,
+.horizontal-chips-bar,
+.tab-bar-container {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+/* Bars and menus with dropdown popovers (filters, grid layout, language, font, etc.) must remain overflow visible */
+header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav,
+nav.horizontal-nav,
+nav.nav-horizontal,
+.horizontal-nav,
+#profile-accessibility-filter-panel,
+.marketplace-controls-toolbar,
+#search-bar-categories-btn,
+#marketplace-filters-btn,
+#marketplace-grid-mode-btn,
+#selector-columns-density {
+  overflow: visible !important;
+}
+
+/* Clean, modern scrollbar hiding for horizontal navigation bars */
+header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav::-webkit-scrollbar,
+nav.horizontal-nav::-webkit-scrollbar,
+nav.nav-horizontal::-webkit-scrollbar,
+.horizontal-menu::-webkit-scrollbar,
+.horizontal-nav::-webkit-scrollbar,
+.nav-horizontal::-webkit-scrollbar,
+.nav-horizontal-nowrap::-webkit-scrollbar,
+.nav-bar-row::-webkit-scrollbar,
+.tab-bar-container::-webkit-scrollbar,
+.filter-tabs-bar::-webkit-scrollbar,
+.category-filter-row::-webkit-scrollbar,
+.horizontal-chips-bar::-webkit-scrollbar,
+#tab-controls::-webkit-scrollbar,
+#profile-tab-switch-container::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Standardized flex items inside navigation bars & horizontal menus: never wrap, shrink, or distort */
+header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav > *,
+nav.horizontal-nav > *,
+nav.nav-horizontal > *,
+.horizontal-menu > *,
+.horizontal-nav > *,
+.nav-horizontal > *,
+.nav-horizontal-nowrap > *,
+.nav-bar-row > *,
+.tab-bar-container > *,
+.filter-tabs-bar > *,
+.category-filter-row > *,
+.horizontal-chips-bar > *,
+#tab-controls > *,
+#tab-controls button,
+#profile-tab-switch-container > * {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* 3. Global Media Queries for Phone, Tablet, and Desktop */
+
+/* --- Phone Screens (< 640px) --- */
+@media screen and (max-width: 639px) {
+  #main-studio-header {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav,
+  .horizontal-menu,
+  .horizontal-nav,
+  .nav-horizontal-nowrap,
+  #tab-controls,
+  #profile-tab-switch-container {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x !important;
+    max-width: 100% !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav > *,
+  .horizontal-menu > *,
+  .horizontal-nav > *,
+  .nav-horizontal-nowrap > *,
+  #tab-controls > *,
+  #tab-controls button,
+  #profile-tab-switch-container > * {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* --- Tablet Screens (640px - 1023px) --- */
+@media screen and (min-width: 640px) and (max-width: 1023px) {
+  #main-studio-header {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav,
+  .horizontal-menu,
+  .horizontal-nav,
+  .nav-horizontal-nowrap,
+  #tab-controls,
+  #profile-tab-switch-container {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav > *,
+  .horizontal-menu > *,
+  .horizontal-nav > *,
+  .nav-horizontal-nowrap > *,
+  #tab-controls > *,
+  #tab-controls button,
+  #profile-tab-switch-container > * {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* --- Desktop Screens (>= 1024px) --- */
+@media screen and (min-width: 1024px) {
+  #main-studio-header {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav,
+  .horizontal-menu,
+  .horizontal-nav,
+  .nav-horizontal-nowrap,
+  #tab-controls,
+  #profile-tab-switch-container {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#yume-styled-sidebar *):not(#merchant-mode-workspace *):not(#admin-workspace *) nav > *,
+  .horizontal-menu > *,
+  .horizontal-nav > *,
+  .nav-horizontal-nowrap > *,
+  #tab-controls > *,
+  #tab-controls button,
+  #profile-tab-switch-container > * {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* ==========================================================================
+   IMPORTANT EXCEPTION: MERCHANT SPACE PAGE & ALL DASHBOARDS
+   Preserve bespoke vertical navigation, sidebars, grids, and workflows intact.
+   ========================================================================== */
+:root {
+  --yume-theme-header-color: #0b2447;
+}
+
+#main-studio-header,
+#yume-styled-sidebar {
+  background-color: var(--yume-theme-header-color) !important;
+  transition: background-color 700ms cubic-bezier(0.4, 0, 0.2, 1), border-color 700ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  will-change: background-color;
+}
+
+#merchant-mode-container,
+#merchant-mode-workspace,
+#yume-styled-sidebar,
+#merchant-profile-modal-backdrop,
+#admin-workspace,
+.merchant-space-page,
+.merchant-dashboard-view {
+  /* Retain all native container styling without horizontal flex-nowrap overrides */
+}
+
+/* Explicitly preserve the vertical layout of merchant space sidebar navigation */
+#yume-styled-sidebar nav {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  overflow-x: hidden !important;
+}
+
+#merchant-mode-workspace::-webkit-scrollbar,
+#merchant-profile-modal-backdrop::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+#merchant-mode-workspace::-webkit-scrollbar-track,
+#merchant-profile-modal-backdrop::-webkit-scrollbar-track {
+  background: transparent;
+}
+#merchant-mode-workspace::-webkit-scrollbar-thumb,
+#merchant-profile-modal-backdrop::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.28);
+  border-radius: 9999px;
+}
+#merchant-mode-workspace::-webkit-scrollbar-thumb:hover,
+#merchant-profile-modal-backdrop::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.5);
+}
+
+@keyframes cardGlowShadow {
+  0% {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08), 0 0 0 0 rgba(217, 119, 6, 0);
+  }
+  50% {
+    box-shadow: 0 18px 36px -6px rgba(0, 0, 0, 0.18), 0 0 22px 3px rgba(217, 119, 6, 0.22);
+  }
+  100% {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08), 0 0 0 0 rgba(217, 119, 6, 0);
+  }
+}
+
+.animated-card-shadow-hover {
+  transition: box-shadow 0.4s ease-in-out, transform 0.4s ease-in-out, border-color 0.3s ease;
+}
+
+.animated-card-shadow-hover:hover,
+.group\/card:hover .animated-card-shadow-hover {
+  animation: none;
+}
+
+/* YUME Merchant Story Rings: Alternating Quarter-Turn Smooth Rotation */
+@keyframes storyRingOuterQuarterAlternating {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(90deg);
+  }
+  50% {
+    transform: rotate(0deg);
+  }
+  75% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes storyRingInnerQuarterAlternating {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-90deg);
+  }
+  50% {
+    transform: rotate(0deg);
+  }
+  75% {
+    transform: rotate(90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* ==========================================================================
+   FIXED PRODUCT CARD SIZING ACROSS VIEWPORTS
+   Ensure product cards maintain fixed, original dimensions without shrinking,
+   stretching, or resizing when the browser window is resized or minimized on PC.
+   (Strict Exception: Merchant Space Page & All Dashboards)
+   ========================================================================== */
+header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container:not(.map-active-4cols),
+main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container:not(.map-active-4cols),
+.profile-products-grid-container:not(.map-active-4cols) {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-card-min-width, 208px), var(--grid-card-min-width, 208px))) !important;
+  justify-content: center !important;
+}
+
+/* Ensure individual product cards stay strictly at their original fixed dimensions without shrinking */
+.profile-products-grid-container:not(.list-mode-grid):not(.map-active-4cols) > *,
+.profile-products-grid-container:not(.list-mode-grid):not(.map-active-4cols) .product-card-container {
+  width: var(--grid-card-min-width, 208px) !important;
+  min-width: var(--grid-card-min-width, 208px) !important;
+  max-width: var(--grid-card-min-width, 208px) !important;
+  flex-shrink: 0 !important;
+}
+
+/* ==========================================================================
+   WHEN MAP IS DISPLAYED: STRICTLY 04 PRODUCT CARDS PER LINE (EXACTLY 4 COLS ON DESKTOP)
+   ========================================================================== */
+@media (min-width: 768px) {
+  header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container.map-active-4cols,
+  main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container.map-active-4cols,
+  #profile-products-grid.map-active-4cols,
+  .profile-products-grid-container.map-active-4cols {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: var(--grid-card-gap, 8px) !important;
+    justify-content: start !important;
+    width: 100% !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container.map-active-4cols > *,
+  header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container.map-active-4cols .product-card-container,
+  main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container.map-active-4cols > *,
+  main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container.map-active-4cols .product-card-container,
+  #profile-products-grid.map-active-4cols > *,
+  #profile-products-grid.map-active-4cols .product-card-container,
+  .profile-products-grid-container.map-active-4cols > *,
+  .profile-products-grid-container.map-active-4cols .product-card-container {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* ==========================================================================
+   MOBILE MODE: STRICTLY 02 PRODUCT CARDS PER LINE (EXACTLY 2 COLS ON MOBILE)
+   Prevents cramped, unreadable 4-column display on mobile screens
+   ========================================================================== */
+@media (max-width: 767px) {
+  header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container,
+  main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container,
+  #profile-products-grid,
+  .profile-products-grid-container,
+  #profile-products-grid.map-active-4cols,
+  .profile-products-grid-container.map-active-4cols {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    justify-content: start !important;
+    width: 100% !important;
+  }
+
+  header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container > *,
+  header:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) ~ * .profile-products-grid-container .product-card-container,
+  main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container > *,
+  main:not(#merchant-mode-container *):not(#merchant-mode-workspace *):not(#admin-workspace *) .profile-products-grid-container .product-card-container,
+  #profile-products-grid > *,
+  #profile-products-grid .product-card-container,
+  .profile-products-grid-container > *,
+  .profile-products-grid-container .product-card-container {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* ==========================================================================
+   DARK MODE HEADER & SLIDESHOW COLOR SYNCHRONIZATION
+   When user switches to dark mode, make the color of the slideshow and header
+   the exact sleek dark theme color (#0f172a) indicated in the screenshot.
+   ========================================================================== */
+.dark #main-studio-header {
+  background-color: #0f172a !important;
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark #featured-deals {
+  background-color: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark #featured-deals > div {
+  background-color: #0f172a !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE SINGLE-LINE FLEXBOX & MEDIA QUERIES (DESKTOP, TABLET, PHONE)
+   Prevents overlapping of logo, buttons, and keeps controls on a single line
+   ========================================================================== */
+
+/* Main Header Container: Strict Flexbox nowrap */
+#main-studio-header > div {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+}
+
+/* Marketplace Controls Toolbar: Strict Flexbox nowrap */
+.marketplace-controls-toolbar {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+}
+
+/* 1. Desktop Mode (min-width: 1024px) */
+@media (min-width: 1024px) {
+  .marketplace-controls-toolbar {
+    gap: 12px;
+  }
+}
+
+/* 2. Tablet Mode (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  #main-studio-header > div {
+    gap: 8px !important;
+    overflow-x: auto !important;
+  }
+  #tab-controls button {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+  .marketplace-controls-toolbar {
+    gap: 6px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  .marketplace-controls-toolbar::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
+/* 3. Phone / Mobile Mode (max-width: 767px) */
+@media (max-width: 767px) {
+  #main-studio-header > div {
+    gap: 6px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  #main-studio-header > div::-webkit-scrollbar {
+    display: none !important;
+  }
+  #tab-controls {
+    padding: 2px !important;
+  }
+  #tab-controls button {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+  }
+  .marketplace-controls-toolbar {
+    gap: 4px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  .marketplace-controls-toolbar::-webkit-scrollbar {
+    display: none !important;
+  }
+  .marketplace-controls-toolbar button {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Merchant Sidebar Collapse Mode */
+.yume-sidebar-collapsed-mode #yume-styled-sidebar {
+  display: none !important;
+}
+
+/* ==========================================================================
+   PLATFORM-WIDE DARK MODE HARMONIZATION & SMOOTH TRANSITIONS
+   Ensures zero flashing when switching between light and dark mode, replaces
+   distracting dynamic gradients/headers in dark mode with a fixed harmonious
+   dark slate palette (#020617 / #0f172a / #1e293b), and guarantees every
+   text, price, discount, product card, and button remains clearly readable.
+   ========================================================================== */
+html,
+body,
+#dz-app-container,
+#main-studio-header,
+#featured-deals,
+#product-preview-modal-root,
+#merchant-profile-modal-body,
+#profile-accessibility-filter-panel {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.dark,
+html.dark body {
+  background-color: #020617 !important;
+  color: #f8fafc;
+  color-scheme: dark;
+}
+
+/* Harmonize Store Profile Navigation Toolbar & Store Promotional Banners in Dark Mode */
+.dark #profile-accessibility-filter-panel {
+  background-color: #0f172a !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6) !important;
+}
+
+.dark #yume-storefront-ad-carousel {
+  background-color: #0f172a !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark #active-store-cover-banner-effects-wrapper {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #020617 100%) !important;
+}
+
+/* Product Page (#product-preview-modal-root) Dark Mode Clarity & Readability */
+.dark #product-preview-modal-root {
+  background-color: #020617 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark #product-preview-modal-root .bg-white:not(.keep-light-surface) {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+.dark #product-preview-modal-root .bg-slate-50,
+.dark #product-preview-modal-root .bg-neutral-50,
+.dark #product-preview-modal-root .bg-\[\#fafafa\],
+.dark #product-preview-modal-root .bg-\[\#f8fafc\] {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark #product-preview-modal-root .text-slate-900,
+.dark #product-preview-modal-root .text-neutral-900,
+.dark #product-preview-modal-root .text-gray-900,
+.dark #product-preview-modal-root .text-black {
+  color: #f8fafc !important;
+}
+
+.dark #product-preview-modal-root .text-slate-800,
+.dark #product-preview-modal-root .text-neutral-800,
+.dark #product-preview-modal-root .text-slate-700,
+.dark #product-preview-modal-root .text-neutral-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark #product-preview-modal-root .text-slate-600,
+.dark #product-preview-modal-root .text-neutral-600,
+.dark #product-preview-modal-root .text-slate-500,
+.dark #product-preview-modal-root .text-neutral-500 {
+  color: #94a3b8 !important;
+}
+
+.dark #product-preview-modal-root input:not([type="checkbox"]):not([type="radio"]),
+.dark #product-preview-modal-root select,
+.dark #product-preview-modal-root textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Ensure YUME Product Card text, prices, and discounts stay crisp in Dark Mode across all pages */
+.dark .product-card-container h5 {
+  color: #f1f5f9 !important;
+}
+
+.dark .product-card-container:hover h5 {
+  color: #fbbf24 !important;
+}
+
+/* ==========================================================================
+   COMPLETE DASHBOARD NIGHT MODE ENHANCEMENT
+   Applies a unified, comfortable, multi-layered dark slate architecture across
+   all Merchant Dashboard & Platform Admin sections, cards, tables, forms,
+   modals, dropdowns, status badges, and analytics panels when .dark is active.
+   Palette:
+   - Main workspace background: #0b0f19
+   - Primary card / container surface: #111827 / rgba(17, 24, 39, 0.88)
+   - Secondary panel / table header / nested box: #1e293b / rgba(30, 41, 59, 0.72)
+   - Interactive input / select / textarea surface: #0f172a
+   - Borders & dividers: rgba(51, 65, 85, 0.65) (#334155)
+   ========================================================================== */
+
+.dark #merchant-mode-container {
+  background-color: #0b0f19 !important;
+  color: #f8fafc;
+}
+
+.dark #merchant-mode-workspace,
+.dark #admin-workspace,
+.dark #product-batch-upload-modal-root {
+  background-color: #0b0f19 !important;
+  color: #f1f5f9;
+}
+
+/* 1. Primary Cards & Content Containers in Night Mode */
+.dark #merchant-mode-workspace .bg-white:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-white\/95:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-white\/90:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-white\/85:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-white\/80:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-white\/70:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-white\/60:not(.keep-light-surface),
+.dark #merchant-mode-workspace .bg-\[\#ffffff\],
+.dark #merchant-mode-workspace .bg-\[\#FFFFFF\],
+.dark #merchant-mode-workspace .bg-\[\#fcfcfd\],
+.dark #merchant-mode-workspace .bg-\[\#f8fafc\],
+.dark #admin-workspace .bg-white:not(.keep-light-surface),
+.dark #admin-workspace .bg-white\/90:not(.keep-light-surface),
+.dark #admin-workspace .bg-white\/80:not(.keep-light-surface),
+.dark #product-batch-upload-modal-root .bg-white:not(.keep-light-surface) {
+  background-color: #111827 !important;
+  border-color: rgba(51, 65, 85, 0.65) !important;
+  color: #f1f5f9;
+}
+
+/* Keep small toggle knobs white inside active switch tracks */
+.dark #merchant-mode-workspace button[role="switch"] > span.bg-white,
+.dark #merchant-mode-workspace .rounded-full > .w-4.h-4.bg-white,
+.dark #merchant-mode-workspace .rounded-full > .w-3\.5.h-3\.5.bg-white,
+.dark #merchant-mode-workspace .rounded-full > .w-5.h-5.bg-white,
+.dark #admin-workspace .rounded-full > .w-4.h-4.bg-white {
+  background-color: #f8fafc !important;
+}
+
+/* 2. Secondary Panels, Table Headers & Muted Surface Containers */
+.dark #merchant-mode-workspace .bg-slate-50,
+.dark #merchant-mode-workspace .bg-slate-50\/90,
+.dark #merchant-mode-workspace .bg-slate-50\/80,
+.dark #merchant-mode-workspace .bg-slate-50\/70,
+.dark #merchant-mode-workspace .bg-slate-50\/60,
+.dark #merchant-mode-workspace .bg-slate-50\/50,
+.dark #merchant-mode-workspace .bg-slate-50\/40,
+.dark #merchant-mode-workspace .bg-slate-50\/30,
+.dark #merchant-mode-workspace .bg-stone-50,
+.dark #merchant-mode-workspace .bg-stone-50\/80,
+.dark #merchant-mode-workspace .bg-stone-50\/60,
+.dark #merchant-mode-workspace .bg-stone-50\/50,
+.dark #merchant-mode-workspace .bg-gray-50,
+.dark #merchant-mode-workspace .bg-neutral-50,
+.dark #admin-workspace .bg-slate-50,
+.dark #admin-workspace .bg-slate-50\/80,
+.dark #admin-workspace .bg-slate-50\/50,
+.dark #admin-workspace .bg-stone-50,
+.dark #product-batch-upload-modal-root .bg-slate-50 {
+  background-color: rgba(30, 41, 59, 0.65) !important;
+  border-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+.dark #merchant-mode-workspace .bg-slate-100,
+.dark #merchant-mode-workspace .bg-slate-100\/90,
+.dark #merchant-mode-workspace .bg-slate-100\/80,
+.dark #merchant-mode-workspace .bg-slate-100\/70,
+.dark #merchant-mode-workspace .bg-slate-100\/60,
+.dark #merchant-mode-workspace .bg-slate-100\/50,
+.dark #merchant-mode-workspace .bg-stone-100,
+.dark #merchant-mode-workspace .bg-stone-100\/80,
+.dark #merchant-mode-workspace .bg-gray-100,
+.dark #merchant-mode-workspace .bg-neutral-100,
+.dark #merchant-mode-workspace .bg-slate-200\/60,
+.dark #merchant-mode-workspace .bg-slate-200\/50,
+.dark #admin-workspace .bg-slate-100,
+.dark #admin-workspace .bg-slate-100\/80,
+.dark #product-batch-upload-modal-root .bg-slate-100 {
+  background-color: #1e293b !important;
+  border-color: rgba(71, 85, 105, 0.55) !important;
+}
+
+/* 3. Typography & Text Hierarchy in Night Mode */
+.dark #merchant-mode-workspace .text-slate-950,
+.dark #merchant-mode-workspace .text-stone-950,
+.dark #merchant-mode-workspace .text-slate-905,
+.dark #merchant-mode-workspace .text-slate-900,
+.dark #merchant-mode-workspace .text-stone-900,
+.dark #merchant-mode-workspace .text-gray-900,
+.dark #merchant-mode-workspace .text-neutral-900,
+.dark #merchant-mode-workspace .text-black,
+.dark #admin-workspace .text-slate-950,
+.dark #admin-workspace .text-slate-900,
+.dark #admin-workspace .text-stone-900,
+.dark #admin-workspace .text-gray-900,
+.dark #product-batch-upload-modal-root .text-slate-900,
+.dark #product-batch-upload-modal-root .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+.dark #merchant-mode-workspace .text-slate-850,
+.dark #merchant-mode-workspace .text-stone-850,
+.dark #merchant-mode-workspace .text-slate-800,
+.dark #merchant-mode-workspace .text-stone-800,
+.dark #merchant-mode-workspace .text-gray-800,
+.dark #merchant-mode-workspace .text-neutral-800,
+.dark #merchant-mode-workspace .text-slate-750,
+.dark #merchant-mode-workspace .text-slate-700,
+.dark #merchant-mode-workspace .text-stone-700,
+.dark #merchant-mode-workspace .text-gray-700,
+.dark #admin-workspace .text-slate-800,
+.dark #admin-workspace .text-slate-700,
+.dark #product-batch-upload-modal-root .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark #merchant-mode-workspace .text-slate-650,
+.dark #merchant-mode-workspace .text-slate-600,
+.dark #merchant-mode-workspace .text-stone-600,
+.dark #merchant-mode-workspace .text-gray-600,
+.dark #merchant-mode-workspace .text-slate-550,
+.dark #admin-workspace .text-slate-600,
+.dark #product-batch-upload-modal-root .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+.dark #merchant-mode-workspace .text-slate-500,
+.dark #merchant-mode-workspace .text-stone-500,
+.dark #merchant-mode-workspace .text-gray-500,
+.dark #merchant-mode-workspace .text-slate-450,
+.dark #merchant-mode-workspace .text-slate-400,
+.dark #merchant-mode-workspace .text-stone-400,
+.dark #admin-workspace .text-slate-500,
+.dark #admin-workspace .text-slate-400,
+.dark #product-batch-upload-modal-root .text-slate-500,
+.dark #product-batch-upload-modal-root .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+/* 4. Borders, Dividers & Table Lines in Night Mode */
+.dark #merchant-mode-workspace .border-slate-100,
+.dark #merchant-mode-workspace .border-slate-105,
+.dark #merchant-mode-workspace .border-slate-150,
+.dark #merchant-mode-workspace .border-slate-200,
+.dark #merchant-mode-workspace .border-slate-200\/90,
+.dark #merchant-mode-workspace .border-slate-200\/80,
+.dark #merchant-mode-workspace .border-slate-200\/70,
+.dark #merchant-mode-workspace .border-slate-200\/60,
+.dark #merchant-mode-workspace .border-slate-200\/50,
+.dark #merchant-mode-workspace .border-slate-250,
+.dark #merchant-mode-workspace .border-slate-300,
+.dark #merchant-mode-workspace .border-stone-100,
+.dark #merchant-mode-workspace .border-stone-200,
+.dark #merchant-mode-workspace .border-stone-200\/80,
+.dark #merchant-mode-workspace .border-stone-200\/60,
+.dark #merchant-mode-workspace .border-stone-300,
+.dark #merchant-mode-workspace .border-gray-100,
+.dark #merchant-mode-workspace .border-gray-200,
+.dark #merchant-mode-workspace .border-\[\#E5E7EB\],
+.dark #merchant-mode-workspace .border-\[\#e2e8f0\],
+.dark #admin-workspace .border-slate-100,
+.dark #admin-workspace .border-slate-200,
+.dark #admin-workspace .border-stone-200,
+.dark #product-batch-upload-modal-root .border-slate-100,
+.dark #product-batch-upload-modal-root .border-slate-200 {
+  border-color: rgba(51, 65, 85, 0.7) !important;
+}
+
+.dark #merchant-mode-workspace .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark #merchant-mode-workspace .divide-slate-150 > :not([hidden]) ~ :not([hidden]),
+.dark #merchant-mode-workspace .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+.dark #merchant-mode-workspace .divide-stone-100 > :not([hidden]) ~ :not([hidden]),
+.dark #merchant-mode-workspace .divide-stone-200 > :not([hidden]) ~ :not([hidden]),
+.dark #admin-workspace .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark #admin-workspace .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(51, 65, 85, 0.55) !important;
+}
+
+/* 5. Form Controls, Inputs, Selects, Textareas & RichTextEditor in Night Mode */
+.dark #merchant-mode-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.dark #merchant-mode-workspace select,
+.dark #merchant-mode-workspace textarea,
+.dark #merchant-mode-workspace [contenteditable="true"],
+.dark #admin-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.dark #admin-workspace select,
+.dark #admin-workspace textarea,
+.dark #product-batch-upload-modal-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.dark #product-batch-upload-modal-root select,
+.dark #product-batch-upload-modal-root textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark #merchant-mode-workspace input::placeholder,
+.dark #merchant-mode-workspace textarea::placeholder,
+.dark #admin-workspace input::placeholder,
+.dark #admin-workspace textarea::placeholder,
+.dark #product-batch-upload-modal-root input::placeholder,
+.dark #product-batch-upload-modal-root textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark #merchant-mode-workspace select option,
+.dark #admin-workspace select option,
+.dark #product-batch-upload-modal-root select option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+.dark #merchant-mode-workspace input:disabled,
+.dark #merchant-mode-workspace select:disabled,
+.dark #merchant-mode-workspace textarea:disabled {
+  background-color: rgba(15, 23, 42, 0.5) !important;
+  color: #64748b !important;
+  border-color: rgba(51, 65, 85, 0.4) !important;
+}
+
+/* 6. Tables & Data Lists in Night Mode */
+.dark #merchant-mode-workspace table thead,
+.dark #admin-workspace table thead,
+.dark #product-batch-upload-modal-root table thead {
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  border-color: #334155 !important;
+}
+
+.dark #merchant-mode-workspace table thead th,
+.dark #admin-workspace table thead th,
+.dark #product-batch-upload-modal-root table thead th {
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+
+.dark #merchant-mode-workspace table tbody tr,
+.dark #admin-workspace table tbody tr,
+.dark #product-batch-upload-modal-root table tbody tr {
+  border-color: rgba(51, 65, 85, 0.45) !important;
+}
+
+.dark #merchant-mode-workspace table tbody tr:hover,
+.dark #admin-workspace table tbody tr:hover,
+.dark #product-batch-upload-modal-root table tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.55) !important;
+}
+
+/* 7. Status Badges & Soft Tinted Alert Surfaces in Night Mode */
+.dark #merchant-mode-workspace .bg-emerald-50,
+.dark #merchant-mode-workspace .bg-emerald-50\/80,
+.dark #merchant-mode-workspace .bg-emerald-50\/60,
+.dark #merchant-mode-workspace .bg-emerald-50\/50,
+.dark #merchant-mode-workspace .bg-emerald-100,
+.dark #merchant-mode-workspace .bg-green-50,
+.dark #merchant-mode-workspace .bg-green-100,
+.dark #admin-workspace .bg-emerald-50,
+.dark #admin-workspace .bg-emerald-100 {
+  background-color: rgba(6, 78, 59, 0.32) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.dark #merchant-mode-workspace .text-emerald-900,
+.dark #merchant-mode-workspace .text-emerald-800,
+.dark #merchant-mode-workspace .text-emerald-750,
+.dark #merchant-mode-workspace .text-emerald-700,
+.dark #merchant-mode-workspace .text-green-800,
+.dark #merchant-mode-workspace .text-green-700,
+.dark #admin-workspace .text-emerald-800,
+.dark #admin-workspace .text-emerald-700 {
+  color: #6ee7b7 !important;
+}
+
+.dark #merchant-mode-workspace .bg-amber-50,
+.dark #merchant-mode-workspace .bg-amber-50\/80,
+.dark #merchant-mode-workspace .bg-amber-50\/60,
+.dark #merchant-mode-workspace .bg-amber-50\/50,
+.dark #merchant-mode-workspace .bg-amber-100,
+.dark #merchant-mode-workspace .bg-yellow-50,
+.dark #merchant-mode-workspace .bg-orange-50,
+.dark #admin-workspace .bg-amber-50,
+.dark #admin-workspace .bg-amber-100 {
+  background-color: rgba(120, 53, 15, 0.32) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.dark #merchant-mode-workspace .text-amber-900,
+.dark #merchant-mode-workspace .text-amber-800,
+.dark #merchant-mode-workspace .text-amber-750,
+.dark #merchant-mode-workspace .text-amber-700,
+.dark #merchant-mode-workspace .text-orange-800,
+.dark #merchant-mode-workspace .text-orange-700,
+.dark #admin-workspace .text-amber-800,
+.dark #admin-workspace .text-amber-700 {
+  color: #fcd34d !important;
+}
+
+.dark #merchant-mode-workspace .bg-rose-50,
+.dark #merchant-mode-workspace .bg-rose-50\/80,
+.dark #merchant-mode-workspace .bg-rose-50\/60,
+.dark #merchant-mode-workspace .bg-rose-50\/50,
+.dark #merchant-mode-workspace .bg-rose-100,
+.dark #merchant-mode-workspace .bg-red-50,
+.dark #merchant-mode-workspace .bg-red-50\/80,
+.dark #merchant-mode-workspace .bg-red-100,
+.dark #admin-workspace .bg-rose-50,
+.dark #admin-workspace .bg-red-50 {
+  background-color: rgba(136, 19, 55, 0.32) !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+}
+
+.dark #merchant-mode-workspace .text-rose-900,
+.dark #merchant-mode-workspace .text-rose-800,
+.dark #merchant-mode-workspace .text-rose-750,
+.dark #merchant-mode-workspace .text-rose-700,
+.dark #merchant-mode-workspace .text-red-800,
+.dark #merchant-mode-workspace .text-red-700,
+.dark #admin-workspace .text-rose-700,
+.dark #admin-workspace .text-red-700 {
+  color: #fda4af !important;
+}
+
+.dark #merchant-mode-workspace .bg-blue-50,
+.dark #merchant-mode-workspace .bg-blue-50\/80,
+.dark #merchant-mode-workspace .bg-blue-50\/60,
+.dark #merchant-mode-workspace .bg-blue-50\/50,
+.dark #merchant-mode-workspace .bg-blue-100,
+.dark #merchant-mode-workspace .bg-sky-50,
+.dark #merchant-mode-workspace .bg-indigo-50,
+.dark #merchant-mode-workspace .bg-indigo-50\/80,
+.dark #merchant-mode-workspace .bg-indigo-50\/50,
+.dark #merchant-mode-workspace .bg-indigo-100,
+.dark #admin-workspace .bg-blue-50,
+.dark #admin-workspace .bg-indigo-50,
+.dark #product-batch-upload-modal-root .bg-indigo-50 {
+  background-color: rgba(30, 58, 138, 0.32) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.dark #merchant-mode-workspace .text-blue-900,
+.dark #merchant-mode-workspace .text-blue-800,
+.dark #merchant-mode-workspace .text-blue-750,
+.dark #merchant-mode-workspace .text-blue-700,
+.dark #merchant-mode-workspace .text-indigo-900,
+.dark #merchant-mode-workspace .text-indigo-800,
+.dark #merchant-mode-workspace .text-indigo-700,
+.dark #admin-workspace .text-blue-700,
+.dark #admin-workspace .text-indigo-700 {
+  color: #93c5fd !important;
+}
+
+.dark #merchant-mode-workspace .bg-purple-50,
+.dark #merchant-mode-workspace .bg-purple-50\/80,
+.dark #merchant-mode-workspace .bg-purple-100,
+.dark #merchant-mode-workspace .bg-violet-50,
+.dark #merchant-mode-workspace .bg-violet-100,
+.dark #merchant-mode-workspace .bg-fuchsia-50 {
+  background-color: rgba(88, 28, 135, 0.32) !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+
+.dark #merchant-mode-workspace .text-purple-900,
+.dark #merchant-mode-workspace .text-purple-800,
+.dark #merchant-mode-workspace .text-purple-700,
+.dark #merchant-mode-workspace .text-violet-800,
+.dark #merchant-mode-workspace .text-violet-700 {
+  color: #d8b4fe !important;
+}
+
+/* 8. Charts & Analytics SVGs in Night Mode */
+.dark #merchant-mode-workspace .recharts-cartesian-grid-horizontal line,
+.dark #merchant-mode-workspace .recharts-cartesian-grid-vertical line,
+.dark #admin-workspace .recharts-cartesian-grid-horizontal line,
+.dark #admin-workspace .recharts-cartesian-grid-vertical line {
+  stroke: #1e293b !important;
+}
+
+.dark #merchant-mode-workspace .recharts-cartesian-axis-tick-value,
+.dark #admin-workspace .recharts-cartesian-axis-tick-value {
+  fill: #94a3b8 !important;
+}
+
+.dark #merchant-mode-workspace .recharts-cartesian-axis-line,
+.dark #admin-workspace .recharts-cartesian-axis-line {
+  stroke: #334155 !important;
+}
+
+/* ==========================================================================
+   V2.1 STORE VIEW / EDIT / KYC HEADER-COORDINATED WORKSPACE SURFACES
+   Derives cohesive tinted Light Mode & deep Dark Mode shading directly from
+   --yume-theme-header-color while avoiding flat plain white slabs.
+   ========================================================================== */
+.yume-store-panel-shell {
+  background-color: color-mix(in srgb, var(--yume-theme-header-color, #1e2631) 10%, #edf2f7);
+  border-color: color-mix(in srgb, var(--yume-theme-header-color, #1e2631) 28%, #cbd5e1);
+  color: #0f172a;
+}
+
+.dark .yume-store-panel-shell,
+.dark #admin-workspace .yume-store-panel-shell {
+  background-color: color-mix(in srgb, var(--yume-theme-header-color, #0b2447) 26%, #0b1220) !important;
+  border-color: color-mix(in srgb, var(--yume-theme-header-color, #38bdf8) 38%, #1e293b) !important;
+  color: #f8fafc !important;
+}
+
+.yume-store-panel-header {
+  background-color: color-mix(in srgb, var(--yume-theme-header-color, #1e2631) 92%, #0f172a);
+  color: #ffffff;
+}
+
+.dark .yume-store-panel-header,
+.dark #admin-workspace .yume-store-panel-header {
+  background-color: color-mix(in srgb, var(--yume-theme-header-color, #0b2447) 75%, #020617) !important;
+  color: #f8fafc !important;
+}
+
+.yume-store-panel-card {
+  background-color: color-mix(in srgb, var(--yume-theme-header-color, #1e2631) 5%, #f5f7fa);
+  border-color: color-mix(in srgb, var(--yume-theme-header-color, #1e2631) 20%, #cbd5e1);
+}
+
+.dark .yume-store-panel-card,
+.dark #admin-workspace .yume-store-panel-card {
+  background-color: color-mix(in srgb, var(--yume-theme-header-color, #0b2447) 18%, #111827) !important;
+  border-color: color-mix(in srgb, var(--yume-theme-header-color, #38bdf8) 28%, #334155) !important;
+}
+
+/* Unified Platform Admin Typography matching Main Page UI font (Inter / sans-serif) */
+.yume-admin-typography,
+.yume-admin-typography code,
+.yume-admin-typography pre,
+.yume-admin-typography kbd,
+.yume-admin-typography samp {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}

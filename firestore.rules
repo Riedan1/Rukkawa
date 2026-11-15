@@ -1,0 +1,232 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'th3p2000@gmail.com' ||
+        request.auth.token.email == 'th3p2014@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidPlatformAuditLog(data) {
+      return data.keys().hasAll(['id', 'timestamp', 'actorUid', 'actorEmail', 'actorRole', 'module', 'action', 'targetEntityType', 'targetEntityId', 'marketScope', 'reason', 'integrityHash'])
+        && data.keys().hasOnly(['id', 'timestamp', 'actorUid', 'actorEmail', 'actorRole', 'module', 'action', 'targetEntityType', 'targetEntityId', 'marketScope', 'reason', 'integrityHash'])
+        && isValidId(data.id)
+        && data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 64
+        && data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 && data.actorUid == request.auth.uid
+        && data.actorEmail is string && data.actorEmail.size() >= 3 && data.actorEmail.size() <= 254
+        && data.actorRole is string && data.actorRole.size() >= 1 && data.actorRole.size() <= 64
+        && data.module is string && data.module.size() >= 1 && data.module.size() <= 64
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 128
+        && data.targetEntityType is string && data.targetEntityType.size() >= 1 && data.targetEntityType.size() <= 64
+        && data.targetEntityId is string && data.targetEntityId.size() >= 1 && data.targetEntityId.size() <= 128
+        && data.marketScope is string && data.marketScope.size() >= 1 && data.marketScope.size() <= 32
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 500
+        && data.integrityHash is string && data.integrityHash.size() >= 1 && data.integrityHash.size() <= 128;
+    }
+
+    // Validation Blueprint: UserProfile (/users/{userId})
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'photoURL', 'authProvider', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'authProvider', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254 && data.email == request.auth.token.email
+        && data.photoURL is string && data.photoURL.size() <= 1024
+        && data.authProvider is string && data.authProvider.size() <= 32 && (data.authProvider == 'google' || data.authProvider == 'password')
+        && data.updatedAt == request.time;
+    }
+
+    // Validation Blueprint: Wishlist (/wishlists/{userId})
+    function isValidWishlist(data) {
+      return data.keys().hasAll(['productIds', 'updatedAt'])
+        && data.keys().hasOnly(['productIds', 'updatedAt'])
+        && data.productIds is list && data.productIds.size() <= 200
+        && (data.productIds.size() == 0 || (data.productIds[0] is string && data.productIds[0].size() <= 128))
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 64;
+    }
+
+    // Validation Blueprint: MainCategory (/categories/{categoryId})
+    function isValidMainCategory(data) {
+      return data.keys().hasAll(['id', 'names', 'icon', 'image', 'order'])
+        && data.keys().hasOnly(['id', 'names', 'icon', 'image', 'order', 'isArchived'])
+        && isValidId(data.id)
+        && data.names is map && data.names.keys().size() <= 10
+        && data.icon is string && data.icon.size() >= 1 && data.icon.size() <= 128
+        && data.image is string && data.image.size() >= 1 && data.image.size() <= 1024
+        && data.order is int && data.order >= 0 && data.order <= 10000
+        && (!('isArchived' in data) || data.isArchived is bool);
+    }
+
+    // Validation Blueprint: Subcategory (/subcategories/{subcategoryId})
+    function isValidSubcategory(data) {
+      return data.keys().hasAll(['id', 'mainCategoryId', 'names', 'icon', 'image', 'order', 'sizeSystem', 'recommendedMaterials', 'fields'])
+        && data.keys().hasOnly(['id', 'mainCategoryId', 'names', 'icon', 'image', 'order', 'isArchived', 'sizeSystem', 'recommendedMaterials', 'fields'])
+        && isValidId(data.id)
+        && isValidId(data.mainCategoryId)
+        && data.names is map && data.names.keys().size() <= 10
+        && data.icon is string && data.icon.size() >= 1 && data.icon.size() <= 128
+        && data.image is string && data.image.size() >= 1 && data.image.size() <= 1024
+        && data.order is int && data.order >= 0 && data.order <= 10000
+        && (!('isArchived' in data) || data.isArchived is bool)
+        && data.sizeSystem is map && data.sizeSystem.keys().size() <= 10
+        && data.recommendedMaterials is list && data.recommendedMaterials.size() <= 100
+        && (data.recommendedMaterials.size() == 0 || (data.recommendedMaterials[0] is string && data.recommendedMaterials[0].size() <= 128))
+        && data.fields is list && data.fields.size() <= 50;
+    }
+
+    // Validation Blueprint: Brand (/brands/{brandId})
+    function isValidBrand(data) {
+      return data.keys().hasAll(['id', 'name', 'category', 'models'])
+        && data.keys().hasOnly(['id', 'name', 'category', 'models'])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 128
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 128
+        && data.models is list && data.models.size() <= 200
+        && (data.models.size() == 0 || (data.models[0] is string && data.models[0].size() <= 128));
+    }
+
+    // Validation Blueprint: PendingModel (/pending_models/{pendingModelId})
+    function isValidPendingModel(data) {
+      return data.keys().hasAll(['id', 'brandId', 'brandName', 'modelName', 'status', 'submittedAt'])
+        && data.keys().hasOnly(['id', 'brandId', 'brandName', 'modelName', 'status', 'submittedAt'])
+        && isValidId(data.id)
+        && isValidId(data.brandId)
+        && data.brandName is string && data.brandName.size() >= 1 && data.brandName.size() <= 128
+        && data.modelName is string && data.modelName.size() >= 1 && data.modelName.size() <= 128
+        && data.status is string && data.status.size() <= 32 && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected')
+        && data.submittedAt is string && data.submittedAt.size() >= 1 && data.submittedAt.size() <= 64;
+    }
+
+    // 1. User Profiles (PII Isolated strictly to Owner or Admin)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && isValidUserProfile(incoming());
+      allow update: if isSignedIn() && isValidId(userId) && isValidUserProfile(incoming()) && (
+        isAdmin() || (
+          request.auth.uid == userId
+          && incoming().uid == existing().uid
+          && incoming().email == existing().email
+          && incoming().authProvider == existing().authProvider
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'updatedAt'])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // 2. Wishlists (Strictly scoped to Owner)
+    match /wishlists/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && isValidWishlist(incoming());
+      allow update: if isSignedIn() && isValidId(userId) && isValidWishlist(incoming()) && (
+        request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['productIds', 'updatedAt'])
+      );
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    // 3. Main Categories (Public catalog read, Admin write)
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if resource.data.order >= 0;
+      allow create: if isAdmin() && isValidId(categoryId) && incoming().id == categoryId && isValidMainCategory(incoming());
+      allow update: if isAdmin() && isValidId(categoryId) && isValidMainCategory(incoming()) && incoming().id == existing().id && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['names', 'icon', 'image', 'order', 'isArchived'])
+      );
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    // 4. Subcategories (Public catalog read, Admin write)
+    match /subcategories/{subcategoryId} {
+      allow get: if isValidId(subcategoryId);
+      allow list: if resource.data.order >= 0;
+      allow create: if isAdmin() && isValidId(subcategoryId) && incoming().id == subcategoryId && isValidSubcategory(incoming()) && exists(/databases/$(database)/documents/categories/$(incoming().mainCategoryId));
+      allow update: if isAdmin() && isValidId(subcategoryId) && isValidSubcategory(incoming()) && incoming().id == existing().id && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['mainCategoryId', 'names', 'icon', 'image', 'order', 'isArchived', 'sizeSystem', 'recommendedMaterials', 'fields'])
+      );
+      allow delete: if isAdmin() && isValidId(subcategoryId);
+    }
+
+    // 5. Brands (Public catalog read, Admin write)
+    match /brands/{brandId} {
+      allow get: if isValidId(brandId);
+      allow list: if resource.data.name >= '';
+      allow create: if isAdmin() && isValidId(brandId) && incoming().id == brandId && isValidBrand(incoming());
+      allow update: if isAdmin() && isValidId(brandId) && isValidBrand(incoming()) && incoming().id == existing().id && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'models'])
+      );
+      allow delete: if isAdmin() && isValidId(brandId);
+    }
+
+    // 6. Pending Models (Authenticated users submit 'pending', Admin reviews)
+    match /pending_models/{pendingModelId} {
+      allow get: if isAdmin() && isValidId(pendingModelId);
+      allow list: if isAdmin() && (resource.data.status == 'pending' || resource.data.status == 'approved' || resource.data.status == 'rejected');
+      allow create: if isSignedIn() && isValidId(pendingModelId) && incoming().id == pendingModelId && isValidPendingModel(incoming()) && incoming().status == 'pending' && exists(/databases/$(database)/documents/brands/$(incoming().brandId));
+      allow update: if isAdmin() && isValidId(pendingModelId) && isValidPendingModel(incoming()) && existing().status == 'pending' && incoming().id == existing().id && incoming().brandId == existing().brandId && incoming().submittedAt == existing().submittedAt && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+      );
+      allow delete: if isAdmin() && isValidId(pendingModelId);
+    }
+
+    // 7. Global Markets Configuration (Public read, Platform Admin write)
+    match /markets/{marketId} {
+      allow get: if isValidId(marketId);
+      allow list: if resource.data.isActive == true || isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(marketId);
+    }
+
+    // 8. Market-Scoped Campaigns (Public read for active campaigns, Owner/Admin write)
+    match /campaigns/{campaignId} {
+      allow get: if isValidId(campaignId);
+      allow list: if resource.data.status == 'active' || isAdmin();
+      allow create, update: if isSignedIn() && isValidId(campaignId) && (
+        isAdmin() || (incoming().level == 'merchant_store' && incoming().ownerStoreId is string && incoming().ownerStoreId.size() >= 1)
+      );
+      allow delete: if isSignedIn() && isValidId(campaignId) && isAdmin();
+    }
+
+    // 9. Platform Audit Logs & Governance Audit Ledger (Strictly append-only, Admin read/create, zero update/delete)
+    match /platform_audit_logs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin() && resource.data.id >= '';
+      allow create: if isAdmin() && isValidId(logId) && incoming().id == logId && isValidPlatformAuditLog(incoming());
+      allow update, delete: if false;
+    }
+
+    match /governanceAuditLedger/{entryId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && isValidId(entryId);
+      allow update, delete: if false;
+    }
+
+    match /governance_checkpoints/{checkpointId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && isValidId(checkpointId);
+      allow update, delete: if false;
+    }
+  }
+}

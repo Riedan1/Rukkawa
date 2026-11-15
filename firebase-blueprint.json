@@ -1,0 +1,206 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "YUME User Profile",
+      "description": "Authenticated YUME Network user profile stored per user UID",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID owning this profile"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Display name of the user"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Verified email address of the user"
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Optional profile avatar URL"
+        },
+        "authProvider": {
+          "type": "string",
+          "enum": ["google", "password"],
+          "maxLength": 32,
+          "description": "Authentication provider identifier"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last profile update"
+        }
+      },
+      "required": ["uid", "name", "email", "authProvider", "updatedAt"]
+    },
+    "Wishlist": {
+      "title": "User Saved Collection (Wishlist)",
+      "description": "Represents the items favorited and saved by a user",
+      "type": "object",
+      "properties": {
+        "productIds": {
+          "type": "array",
+          "description": "List of saved product IDs or names"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The ISO timestamp when the saved collection was last updated"
+        }
+      },
+      "required": ["productIds", "updatedAt"]
+    },
+    "MainCategory": {
+      "title": "Main Category",
+      "description": "Represents a high-level catalog category like Fashion, Health and Beauty, or Electronics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "names": { "type": "object", "description": "Multi-lingual names dictionary e.g. {en, ar, fr}" },
+        "icon": { "type": "string", "maxLength": 128 },
+        "image": { "type": "string", "maxLength": 1024 },
+        "order": { "type": "integer" },
+        "isArchived": { "type": "boolean" }
+      },
+      "required": ["id", "names", "icon", "image", "order"]
+    },
+    "Subcategory": {
+      "title": "Subcategory",
+      "description": "Represents a specific category belonging to a main category, which contains dynamic specification fields and sizing rules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "mainCategoryId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "names": { "type": "object", "description": "Multi-lingual names dictionary e.g. {en, ar, fr}" },
+        "icon": { "type": "string", "maxLength": 128 },
+        "image": { "type": "string", "maxLength": 1024 },
+        "order": { "type": "integer" },
+        "isArchived": { "type": "boolean" },
+        "sizeSystem": { "type": "object" },
+        "recommendedMaterials": { "type": "array" },
+        "fields": { "type": "array" }
+      },
+      "required": ["id", "mainCategoryId", "names", "icon", "image", "order", "sizeSystem", "recommendedMaterials", "fields"]
+    },
+    "Brand": {
+      "title": "Brand",
+      "description": "Represents a brand under a high-level category with approved models",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 128 },
+        "models": { "type": "array" }
+      },
+      "required": ["id", "name", "category", "models"]
+    },
+    "PendingModel": {
+      "title": "Pending Model",
+      "description": "Represents a model submitted by user for review and approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "brandId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "brandName": { "type": "string", "maxLength": 128 },
+        "modelName": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "maxLength": 32 },
+        "submittedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "brandId", "brandName", "modelName", "status", "submittedAt"]
+    },
+    "MarketConfig": {
+      "title": "Global Market Configuration",
+      "description": "Configuration, currency, cultural ornaments, and cultural color palette for an independent country market",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 16, "pattern": "^[A-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "currency": { "type": "string", "maxLength": 12 },
+        "isActive": { "type": "boolean" },
+        "isMuslimMarket": { "type": "boolean" }
+      },
+      "required": ["id", "name", "currency", "isActive", "isMuslimMarket"]
+    },
+    "MerchantCampaign": {
+      "title": "Merchant Store or Official Platform Campaign",
+      "description": "Market-isolated promotional campaign scoped to a merchant storefront or official platform campaign",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 160 },
+        "marketId": { "type": "string", "maxLength": 16 },
+        "level": { "type": "string", "enum": ["merchant_store", "platform_official", "yume_sponsored_ad"] },
+        "ownerStoreId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["draft", "active", "scheduled", "ended", "pending_admin_approval"] }
+      },
+      "required": ["id", "title", "marketId", "level", "status"]
+    },
+    "PlatformAuditLog": {
+      "title": "Platform Admin Immutable Audit Log",
+      "description": "Append-only hash-chained administrative governance audit log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 254 },
+        "actorRole": { "type": "string", "maxLength": 64 },
+        "module": { "type": "string", "maxLength": 64 },
+        "action": { "type": "string", "maxLength": 128 },
+        "targetEntityType": { "type": "string", "maxLength": 64 },
+        "targetEntityId": { "type": "string", "maxLength": 128 },
+        "marketScope": { "type": "string", "maxLength": 32 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "integrityHash": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "timestamp", "actorUid", "actorEmail", "actorRole", "module", "action", "targetEntityType", "targetEntityId", "marketScope", "reason", "integrityHash"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores authenticated user's profile isolated to owner access"
+    },
+    "/wishlists/{userId}": {
+      "schema": "Wishlist",
+      "description": "Saves and persists user's saved wishlist collection"
+    },
+    "/categories/{categoryId}": {
+      "schema": "MainCategory",
+      "description": "Saves and manages high-level product catalog main categories"
+    },
+    "/subcategories/{subcategoryId}": {
+      "schema": "Subcategory",
+      "description": "Saves and manages subcategories containing specialized attributes and schemas"
+    },
+    "/brands/{brandId}": {
+      "schema": "Brand",
+      "description": "Saves and manages brands with official approved models"
+    },
+    "/pending_models/{pendingModelId}": {
+      "schema": "PendingModel",
+      "description": "Saves and manages custom models pending review"
+    },
+    "/markets/{marketId}": {
+      "schema": "MarketConfig",
+      "description": "Stores independent country market configurations and cultural color palettes"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": "MerchantCampaign",
+      "description": "Stores market-scoped merchant storefront campaigns and official platform campaigns"
+    },
+    "/platform_audit_logs/{logId}": {
+      "schema": "PlatformAuditLog",
+      "description": "Stores immutable append-only Platform Admin audit log entries"
+    }
+  }
+}

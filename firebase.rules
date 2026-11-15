@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny catch-all rule: Zero Trust baseline
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Wishlist: Strictly scoped to the authenticated user owning the collection
+    match /wishlists/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['productIds', 'updatedAt'])
+        && request.resource.data.productIds is list
+        && request.resource.data.productIds.size() <= 200;
+    }
+
+    // Catalog Categories: Publicly readable by all shoppers, writable only by verified administrators
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.auth.token.admin == true || request.auth.token.email.matches('.*@admin\\.yume\\.dz$'));
+    }
+
+    // Subcategories: Publicly readable catalog specifications, writable only by verified administrators
+    match /subcategories/{subcategoryId} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.auth.token.admin == true || request.auth.token.email.matches('.*@admin\\.yume\\.dz$'));
+    }
+
+    // Approved Brands Catalog: Publicly readable, restricted administrative writes
+    match /brands/{brandId} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.auth.token.admin == true || request.auth.token.email.matches('.*@admin\\.yume\\.dz$'));
+    }
+
+    // Pending Models: Authenticated merchants/users can submit pending entries, only admin can approve or delete
+    match /pending_models/{pendingModelId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['id', 'brandId', 'brandName', 'modelName', 'status', 'submittedAt'])
+        && request.resource.data.status == 'pending';
+      allow update, delete: if request.auth != null && (request.auth.token.admin == true || request.auth.token.email.matches('.*@admin\\.yume\\.dz$'));
+    }
+  }
+}
