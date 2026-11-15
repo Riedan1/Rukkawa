@@ -1200,7 +1200,7 @@ export default function OrdersModule({
             title="Filter to only view Promotion & Offer Orders"
           >
             <img
-              src="/assets/aistudio/image_2a5c0b49.png"
+              src="assets/aistudio/image_2a5c0b49.png"
               alt="Offer"
               className={`w-3.5 h-3.5 shrink-0 object-contain ${
                 onlyOfferOrders ? "brightness-0 invert" : "dark:brightness-0 dark:invert"
@@ -2725,7 +2725,7 @@ export default function OrdersModule({
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-black">
                                       <img
-                                        src="/assets/aistudio/image_2a5c0b49.png"
+                                        src="assets/aistudio/image_2a5c0b49.png"
                                         alt="Offer"
                                         className="w-3.5 h-3.5 shrink-0 object-contain dark:brightness-0 dark:invert"
                                       />
@@ -2988,7 +2988,7 @@ export default function OrdersModule({
                               <div className="flex items-center justify-between">
                                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-extrabold text-[11px] border border-indigo-200 dark:border-indigo-800">
                                   <img
-                                    src="/assets/aistudio/image_2a5c0b49.png"
+                                    src="assets/aistudio/image_2a5c0b49.png"
                                     alt="Offer"
                                     className="w-3.5 h-3.5 shrink-0 object-contain dark:brightness-0 dark:invert"
                                   />

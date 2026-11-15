@@ -998,7 +998,7 @@ export const YumeShopFooter: React.FC<YumeShopFooterProps> = ({
                 title="Cash on Delivery — Available"
               >
                 <img
-                  src="/assets/aistudio/cod_icon_circular_transparent.png"
+                  src="assets/aistudio/cod_icon_circular_transparent.png"
                   alt="Cash on Delivery"
                   className="h-10 w-10 sm:h-11 sm:w-11 object-contain rounded-full select-none drop-shadow-2xs"
                 />
@@ -1023,7 +1023,7 @@ export const YumeShopFooter: React.FC<YumeShopFooterProps> = ({
                 title="BaridiMob — Coming Soon"
               >
                 <img
-                  src="/assets/aistudio/baridimob_logo_exact.png"
+                  src="assets/aistudio/baridimob_logo_exact.png"
                   alt="BaridiMob"
                   className="h-9 sm:h-10 w-auto object-contain select-none"
                 />
@@ -1049,7 +1049,7 @@ export const YumeShopFooter: React.FC<YumeShopFooterProps> = ({
                 title="Visa — Coming Soon"
               >
                 <img
-                  src="/assets/aistudio/visa_icon_exact.png"
+                  src="assets/aistudio/visa_icon_exact.png"
                   alt="Visa"
                   className="h-8 sm:h-8.5 w-auto object-contain select-none bg-white mix-blend-multiply"
                 />
@@ -1075,7 +1075,7 @@ export const YumeShopFooter: React.FC<YumeShopFooterProps> = ({
                 title="Mastercard — Coming Soon"
               >
                 <img
-                  src="/assets/aistudio/mastercard_icon_exact.png"
+                  src="assets/aistudio/mastercard_icon_exact.png"
                   alt="Mastercard"
                   className="h-8 sm:h-8.5 w-auto object-contain select-none bg-white mix-blend-multiply"
                 />

@@ -6107,8 +6107,10 @@ export default function App() {
       const response = await fetch("/api/returns");
       if (response.ok) {
         const data = await response.json();
-        setReturnRequests(data);
-        localStorage.setItem("yume_cached_returns", JSON.stringify(data));
+        if (Array.isArray(data)) {
+          setReturnRequests(data);
+          localStorage.setItem("yume_cached_returns", JSON.stringify(data));
+        }
       }
     } catch (err) {
       console.warn("Retrying /api/returns synchronization...", err);

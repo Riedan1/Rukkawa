@@ -323,8 +323,8 @@ export const YumeAccountRegistrationPage: React.FC<YumeAccountRegistrationPagePr
               <img
                 src={
                   warmTheme
-                    ? "/assets/aistudio/yume_phone_brown_transparent.png"
-                    : "/assets/aistudio/yume_phone_blue_transparent.png"
+                    ? "assets/aistudio/yume_phone_brown_transparent.png"
+                    : "assets/aistudio/yume_phone_blue_transparent.png"
                 }
                 alt="YUME App Preview"
                 className="w-full h-auto object-contain pointer-events-none select-none"

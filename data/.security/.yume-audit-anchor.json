@@ -1,9 +1,9 @@
 {
-  "checkpointId": "chk_1794779166527",
+  "checkpointId": "chk_1794779820016",
   "ledgerLength": 8,
-  "lastEntryId": "aud_1794779166527_11d79c",
-  "lastIntegrityHash": "4f8f34431217c8076ba418378933d4de5a24bff303137b7257543dce57281f8d",
-  "cumulativeRootHash": "fed542d83014a4b5a23b9b14464a97345212292639e38c7d711ca6cfda5c5f26",
-  "createdAt": "2026-11-15T21:46:06.527Z",
-  "hmacSignature": "f0bfcc43f01dd543ac968a0e4d2f03e1d9ca2b25aad60d678908a6e5e6f31379"
+  "lastEntryId": "aud_1794779820015_683450",
+  "lastIntegrityHash": "4dde5ae97b6babc38ec396b85b03d864a07efecfbfe19451273f66a7c350a64b",
+  "cumulativeRootHash": "af2dd72faef8591e51ca6a740bb20f48c083294b4d28081aae5f3b26a9ae2f91",
+  "createdAt": "2026-11-15T21:57:00.016Z",
+  "hmacSignature": "69cdf454e62f02e515acef08e177efaf15aeb0c03b55c8fe3f4e32ff6f8e44ea"
 }

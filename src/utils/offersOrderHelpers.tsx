@@ -666,7 +666,7 @@ export function MerchantOrderOfferBadge({
     <div className="mt-1.5 space-y-1 text-left">
       <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold">
         <img
-          src="/assets/aistudio/image_2a5c0b49.png"
+          src="assets/aistudio/image_2a5c0b49.png"
           alt="Offer"
           className="w-3.5 h-3.5 shrink-0 object-contain dark:brightness-0 dark:invert"
         />
@@ -707,7 +707,7 @@ export function MerchantOfferDetailsFulfillmentPanel({
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
             <img
-              src="/assets/aistudio/image_2a5c0b49.png"
+              src="assets/aistudio/image_2a5c0b49.png"
               alt="Offer"
               className="w-4 h-4 shrink-0 object-contain brightness-0 invert"
             />
