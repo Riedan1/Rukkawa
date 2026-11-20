@@ -1,0 +1,1075 @@
+PROJECT: YUME MARKETPLACE
+FEATURE: PARTNER PICKS
+MODE: PLAN MODE ONLY
+
+==================================================
+1. MAIN OBJECTIVE
+==================================================
+
+I want you to conduct a comprehensive architectural
+review and prepare a detailed implementation plan
+for a new YUME feature called "Partner Picks".
+
+IMPORTANT:
+
+This task is strictly for investigation, analysis,
+architecture review, and implementation planning.
+
+DO NOT implement anything.
+DO NOT modify source code.
+DO NOT create or modify database migrations.
+DO NOT modify existing files.
+DO NOT change existing UI components.
+DO NOT introduce new functionality yet.
+
+Your task is to understand the existing project first,
+then prepare a technically accurate implementation plan.
+
+Do not assume how the current project works.
+Inspect the actual implementation before making
+architectural decisions.
+
+==================================================
+2. FEATURE CONCEPT
+==================================================
+
+Partner Picks is a reciprocal merchant-to-merchant
+product collaboration system.
+
+It allows merchants to establish partnerships and
+display selected products from partner stores across
+different areas of the YUME ecosystem.
+
+The system must be based on mutual cooperation,
+permissions, negotiated placement positions,
+reciprocal exposure, and configurable subscription
+entitlements.
+
+IMPORTANT DISTINCTION:
+
+Partner Picks is NOT the future paid advertising
+system of YUME.
+
+Keep Partner Picks architecturally independent from
+future paid advertising campaigns, sponsored ads,
+and advertising billing.
+
+Partner Picks should feel like a natural extension
+of YUME's social-commerce experience.
+
+It must not make stores or browsing experiences
+look like intrusive advertising platforms.
+
+==================================================
+3. STOREFRONT PLACEMENT CHANNELS
+==================================================
+
+Partner Picks products may appear in five different
+placement channels:
+
+A. STORE BANNER
+
+Partner products may appear within the existing
+blue store banner.
+
+They should be integrated with the store's own
+products rather than replacing all native products.
+
+B. STORE PRODUCT GRID
+
+Partner products may appear between ordinary
+product cards.
+
+They must visually integrate with the existing
+product card design.
+
+C. DISCOVER MORE PRODUCTS
+
+Partner products may appear in the existing
+Discover More Products section on product landing
+pages.
+
+D. REELS FEED
+
+Partner Picks products may appear naturally between
+Reels while users browse the Reels feed.
+
+Requirements:
+
+- Never interrupt an actively playing Reel.
+- Never force users to watch promotional content.
+- Never require waiting before continuing.
+- Allow users to skip and continue browsing.
+- Use a presentation compatible with the existing
+  Reels interface.
+- Link directly to the original product landing page.
+
+E. STORIES
+
+Partner Picks products may appear naturally while
+users navigate Stories.
+
+Requirements:
+
+- Do not interrupt an actively viewed Story.
+- Do not insert promotional Stories after every
+  ordinary Story.
+- Maintain natural navigation.
+- Avoid excessive repetition.
+- Provide a direct path to the original product
+  landing page.
+
+All five placement channels must be investigated
+against the existing project architecture.
+
+Do not assume that Reels and Stories currently use
+the same rendering or content delivery mechanism.
+
+==================================================
+4. USER EXPERIENCE AND NON-INTRUSIVE DISPLAY
+==================================================
+
+This is a critical requirement.
+
+Partner Picks must never become annoying,
+aggressive, or excessively repetitive.
+
+USER EXPERIENCE TAKES PRIORITY OVER EXPOSURE VOLUME.
+
+Introduce a proposed Smart Frequency Control system.
+
+Study and propose rules for:
+
+- Minimum interval between promotional appearances.
+- Maximum promotional appearances per session.
+- Daily exposure limits per user.
+- Product repetition prevention.
+- Store repetition prevention.
+- Partner rotation.
+- Placement-specific frequency limits.
+- Cross-channel repetition control.
+- User fatigue detection.
+- Skipping behavior.
+- Recently viewed promotional products.
+
+The system should avoid showing the same product
+repeatedly across Reels, Stories, and storefronts
+within an unnecessarily short period.
+
+Propose a User Fatigue Protection mechanism.
+
+For example:
+
+If a user repeatedly skips Partner Picks products,
+the system may reduce promotional exposure to that
+user.
+
+However, reducing exposure for one user must not
+unfairly penalize the merchant globally.
+
+The system should balance:
+
+1. Merchant exposure fairness.
+2. User experience.
+3. Product relevance.
+4. Store diversity.
+5. Placement availability.
+
+Do not invent arbitrary final frequency values.
+
+Propose configurable defaults and explain how
+Platform Admin will control them.
+
+==================================================
+5. PLATFORM ADMIN — COMPLETE PLACEMENT MANAGEMENT
+==================================================
+
+Platform Admin must have comprehensive control over
+all Partner Picks placement channels.
+
+Create a proposed administrative section:
+
+Partner Picks → Placement Management
+
+The administrator must be able to independently
+manage every placement channel.
+
+The five channels are:
+
+1. Store Banner.
+2. Store Product Grid.
+3. Discover More Products.
+4. Reels Feed.
+5. Stories.
+
+For EACH placement channel, Platform Admin must
+be able to:
+
+A. ENABLE / DISABLE
+
+- Enable the placement.
+- Disable the placement.
+- Independently control its availability.
+- Disable one channel without disabling the others.
+
+B. MODIFY PLACEMENT CONFIGURATION
+
+- Modify placement behavior.
+- Modify display rules.
+- Modify product presentation.
+- Configure the number of displayed products.
+- Configure placement positions where applicable.
+- Configure insertion intervals.
+- Configure maximum frequency.
+- Configure minimum frequency intervals.
+- Configure rotation behavior.
+- Configure responsive behavior.
+
+C. MODIFY VISUAL PRESENTATION
+
+Where technically appropriate, allow authorized
+administrators to configure:
+
+- Product card presentation.
+- Card dimensions.
+- Displayed product information.
+- Partner Picks badge.
+- Image presentation.
+- Responsive layout.
+- Desktop and mobile behavior.
+
+Do not create a generic visual editor if the existing
+architecture does not support one.
+
+Instead, analyze the best maintainable approach.
+
+D. INDEPENDENT CHANNEL SETTINGS
+
+Changing Reels settings must not unintentionally
+change Stories settings.
+
+Changing Store Banner settings must not affect
+Product Grid settings.
+
+Every channel must have independently manageable
+configuration.
+
+E. GLOBAL SETTINGS
+
+Provide a global enable/disable control for the
+entire Partner Picks feature.
+
+If globally disabled, all Partner Picks placements
+must stop appearing without deleting partnership
+data or original products.
+
+F. PLAN-BASED PLACEMENT ACCESS
+
+Platform Admin must also be able to determine which
+placement channels are available to each subscription
+plan.
+
+IMPORTANT:
+
+Distinguish between:
+
+- Global placement availability.
+- Plan-based placement eligibility.
+- Individual merchant partnership permissions.
+
+These are separate configuration layers.
+
+G. ADMIN PERMISSIONS AND AUDIT HISTORY
+
+Integrate all administrative actions with the
+existing Platform Admin permission system.
+
+Record:
+
+- Administrator identity.
+- Configuration changed.
+- Previous value.
+- New value.
+- Timestamp.
+- Relevant reason, if supported.
+
+Do not create a separate administration system.
+
+Reuse the existing Platform Admin architecture.
+
+==================================================
+6. SUBSCRIPTION PLANS AND PARTNERSHIP LIMITS
+==================================================
+
+Partner Picks eligibility must be configurable
+through Platform Admin.
+
+Initial illustrative configuration:
+
+Free:
+- No partnerships.
+
+Pro:
+- No partnerships.
+
+Pro Plus:
+- Maximum 2 partners.
+- Maximum 3 products per partnership.
+
+Premium:
+- Configurable partner limit.
+- Initial example: 5 products per partnership.
+
+Premium Plus / Ultra:
+- Configurable partner limit.
+- Initial example: 6 products per partnership.
+
+IMPORTANT:
+
+These are examples, not hardcoded business rules.
+
+Inspect the actual subscription plan names in
+the project.
+
+Platform Admin must be able to modify:
+
+- Eligible plans.
+- Maximum partners per merchant.
+- Maximum products per partnership.
+- Available placement channels.
+- Other relevant partnership entitlements.
+
+Partner limits and product limits must remain
+independent.
+
+IMPORTANT PRODUCT SHARING SCENARIO:
+
+Merchant A owns three products.
+
+Merchant A wants to share those same three products
+with Merchant B and Merchant C.
+
+The system must allow the same three products to
+appear in both partner stores independently.
+
+Sharing a product with B must not consume the
+product-sharing allowance for C.
+
+The product limit is evaluated independently
+within each partnership.
+
+DEFAULT PRODUCT SELECTION:
+
+The default behavior should allow a merchant to
+select one common product collection for all partners.
+
+However, merchants must also have the option to
+customize product selection separately for each
+partnership.
+
+==================================================
+7. PARTNERSHIP REQUEST WORKFLOW
+==================================================
+
+Expected workflow:
+
+1. Merchant A visits Merchant B's store.
+2. Merchant A selects Partner Picks.
+3. Merchant A sends a partnership request.
+4. Merchant B receives a notification.
+5. Merchant B can accept or reject the request.
+6. If accepted, both merchants access a full-page
+   Partner Picks Workspace.
+7. Both merchants negotiate the agreement and
+   placement details.
+8. The partnership becomes active only after all
+   required approvals are completed.
+
+Use the existing YUME notification system.
+
+Do not introduce duplicate notification infrastructure.
+
+The workspace must be a complete page, not merely
+a small modal.
+
+Proposed workspace sections:
+
+- Partnership Overview.
+- Shared Products.
+- Store Placement.
+- Agreement and Approvals.
+- Exposure Statistics.
+- Activity History.
+
+==================================================
+8. INTERACTIVE STORE PLACEMENT MAP
+==================================================
+
+This is one of the most important components.
+
+Each merchant must see a visual representation
+of THEIR OWN storefront.
+
+The placement map must represent the actual
+storefront structure.
+
+Include:
+
+A. STORE BANNER AREA
+
+B. PRODUCT GRID
+
+Show actual rows and columns.
+
+Examples:
+
+Row 1 / Column 1
+Row 1 / Column 2
+Row 2 / Column 1
+Row 2 / Column 2
+
+C. DISCOVER MORE PRODUCTS AREA
+
+D. OTHER SUPPORTED PLACEMENT AREAS
+
+Where appropriate, represent additional placement
+channels.
+
+IMPORTANT:
+
+The map must not be merely decorative.
+
+It must correspond to real storefront placement
+positions and the actual rendering system.
+
+Study how the current storefront layout is generated
+before proposing the implementation.
+
+Consider responsive layouts and differences between
+desktop and mobile storefronts.
+
+==================================================
+9. PRODUCT PLACEMENT NEGOTIATION
+==================================================
+
+Merchant A selects products from A's own catalog.
+
+Merchant A cannot:
+
+- Create products inside Merchant B's store.
+- Duplicate products into B's catalog.
+- Transfer product ownership.
+- Modify B's original products.
+
+Merchant A proposes several possible placement
+positions for each selected product.
+
+Example:
+
+Product 1:
+- Row 1 / Column 1.
+- Row 2 / Column 2.
+- Row 3 / Column 1.
+- Store Banner.
+
+Merchant B receives these proposed positions.
+
+Merchant B can:
+
+- Accept one of the proposed positions.
+- Reject a proposed position.
+- Leave a proposal pending.
+
+After Merchant B selects a position, the selection
+must return to Merchant A for final approval.
+
+The placement becomes active only after BOTH
+merchants approve the final position.
+
+IMPORTANT:
+
+Merchant B should select from the locations proposed
+by Merchant A.
+
+Do not allow B to impose a new location without
+following the agreed proposal and approval workflow.
+
+Use clear status indicators:
+
+GREEN = Approved.
+RED = Rejected.
+YELLOW = Pending.
+
+Approval must happen independently for each product
+and its placement.
+
+Rejecting one product must not block other approved
+products in the same partnership.
+
+Maintain a complete activity history including:
+
+- Who proposed the position.
+- Proposed alternatives.
+- Who selected the position.
+- Final approval.
+- Rejection.
+- Changes.
+- Previous and new positions.
+- Timestamps.
+
+==================================================
+10. PRODUCT OWNERSHIP AND LIVE REFERENCES
+==================================================
+
+Partner Picks must reference original products.
+
+Do not duplicate product records.
+
+The original merchant remains the product owner.
+
+The partner storefront displays the original product
+information through a controlled reference mechanism.
+
+Study how to handle:
+
+- Price changes.
+- Image changes.
+- Description changes.
+- Product deactivation.
+- Product deletion.
+- Out-of-stock products.
+- Product visibility changes.
+- Product category changes.
+
+Propose safe behavior for each scenario.
+
+If a product becomes unavailable or invalid for
+display, its Partner Picks placement should be
+automatically suspended or hidden as appropriate.
+
+This must not automatically terminate the entire
+partnership.
+
+All product clicks must lead to the original
+product landing page.
+
+==================================================
+11. RECIPROCAL EXPOSURE AND FAIRNESS
+==================================================
+
+Fair exposure is essential.
+
+Example:
+
+Merchant A has one partner.
+Merchant B has five partners.
+
+The fact that B has additional partners must not
+automatically reduce A's fair exposure within
+the A-B partnership.
+
+Exposure fairness must be evaluated within each
+partnership independently.
+
+Study and propose a fair exposure algorithm.
+
+Consider:
+
+- Impressions.
+- Unique exposure opportunities.
+- Placement type.
+- Exposure duration.
+- Product rotation.
+- Product count.
+- Partnership agreement.
+- Available inventory.
+- User frequency limits.
+- Different traffic volumes.
+
+The algorithm should not promise equal impressions
+when actual traffic and available opportunities
+are different.
+
+Instead, propose a measurable and transparent
+fairness model.
+
+Expose relevant statistics to both merchants.
+
+==================================================
+12. PARTNER ROTATION
+==================================================
+
+A merchant may have multiple partners.
+
+However, all partners must not appear simultaneously.
+
+Initial agreed rule:
+
+Maximum TWO partner stores visible at the same
+time, subject to Platform Admin configuration.
+
+Example:
+
+Refresh 1:
+Partner A + Partner B.
+
+Refresh 2:
+Partner C.
+
+Refresh 3:
+Partner D + Partner E.
+
+Refresh 4:
+Partner B + Partner E.
+
+DEFAULT ROTATION:
+
+Rotate partner stores on page refresh.
+
+OPTIONAL ROTATION:
+
+Platform Admin may enable timed rotation.
+
+The administrator can configure the number of
+seconds between rotations.
+
+Timed rotation must be disabled by default.
+
+Rotation must not require a complete storefront
+reload.
+
+Study how to implement rotation without causing:
+
+- Layout shifts.
+- Repeated impressions.
+- Excessive requests.
+- Poor performance.
+- Unfair exposure distribution.
+
+The maximum simultaneous partner stores must
+be configurable from Platform Admin.
+
+==================================================
+13. PLACEMENT ENGINE ARCHITECTURE
+==================================================
+
+Propose a centralized Placement Engine with
+independent rules for each placement channel.
+
+The engine should support:
+
+- Store Banner.
+- Product Grid.
+- Discover More Products.
+- Reels Feed.
+- Stories.
+
+However, the configuration and behavior of each
+channel must remain independently controllable.
+
+The engine should coordinate:
+
+- Partnership eligibility.
+- Product eligibility.
+- Placement approvals.
+- Subscription limits.
+- Rotation.
+- Frequency control.
+- User fatigue protection.
+- Exposure tracking.
+- Placement availability.
+
+Do not assume that all channels should use
+identical rendering logic.
+
+Study the existing architecture and recommend
+the appropriate integration points.
+
+==================================================
+14. PLATFORM ADMIN PARTNERSHIP MANAGEMENT
+==================================================
+
+In addition to placement configuration, Platform
+Admin should be able to monitor partnerships.
+
+Propose management capabilities for:
+
+- Partnership requests.
+- Accepted partnerships.
+- Pending agreements.
+- Placement approvals.
+- Active partnerships.
+- Rejected partnerships.
+- Cancelled partnerships.
+- Expired partnerships.
+- Suspended partnerships.
+
+Administrators should be able to suspend a
+partnership when necessary.
+
+Suspension must stop its active placements without
+deleting original product data or partnership history.
+
+==================================================
+15. ANALYTICS AND REPORTING
+==================================================
+
+Study and propose analytics for merchants and
+administrators.
+
+Track separately for every placement channel:
+
+- Impressions.
+- Unique users reached.
+- Product clicks.
+- Click-through rate.
+- Exposure frequency.
+- Partner store distribution.
+- Product distribution.
+- Time period.
+- Placement performance.
+
+Channels must be independently measurable.
+
+For example, Reels exposure must not be mixed
+with Stories exposure.
+
+Avoid double-counting impressions across refreshes,
+repeated rendering, or technical retries.
+
+Propose an accurate event tracking architecture.
+
+==================================================
+16. SECURITY AND PERMISSIONS
+==================================================
+
+Review the existing authentication, authorization,
+and merchant permission systems.
+
+Enforce:
+
+- Product ownership verification.
+- Store ownership verification.
+- Partnership authorization.
+- Placement approval authorization.
+- Subscription entitlement validation.
+- Platform Admin permissions.
+- Protection against unauthorized product insertion.
+- Protection against unauthorized placement changes.
+- Protection against unauthorized partnership changes.
+
+Merchants must never be able to edit another
+merchant's original product.
+
+All sensitive partnership actions must be validated
+on the server side, not only in the frontend.
+
+==================================================
+17. PARTNERSHIP LIFECYCLE
+==================================================
+
+Propose a clear lifecycle.
+
+Possible partnership statuses:
+
+- Pending Request.
+- Accepted.
+- Terms Pending.
+- Placement Pending.
+- Active.
+- Rejected.
+- Cancelled.
+- Expired.
+- Suspended.
+
+IMPORTANT:
+
+Separate partnership status from individual
+product placement status.
+
+A partnership may be active while some products
+are pending approval or rejected.
+
+Support:
+
+- Product removal.
+- Partnership cancellation.
+- Partnership expiration.
+- Administrative suspension.
+- Reinstatement where appropriate.
+
+Keep historical records.
+
+==================================================
+18. PERFORMANCE AND SCALABILITY
+==================================================
+
+YUME is intended to scale significantly.
+
+Study the current architecture and propose
+a scalable implementation.
+
+Evaluate:
+
+- Database relationships.
+- Query optimization.
+- Database indexing.
+- Caching.
+- Lazy loading.
+- Placement resolution.
+- Rotation efficiency.
+- Exposure event collection.
+- Reels integration.
+- Stories integration.
+- Concurrent storefront requests.
+- Failure handling.
+- Data consistency.
+
+Partner Picks must not noticeably slow down:
+
+- Storefront loading.
+- Product pages.
+- Reels browsing.
+- Stories browsing.
+
+Consider graceful fallback behavior if the
+Partner Picks service or data is unavailable.
+
+Native storefront content must continue to work.
+
+==================================================
+19. DESIGN AND USER INTERFACE
+==================================================
+
+Follow the existing YUME design system.
+
+Do not create an unrelated visual identity.
+
+Requirements:
+
+- Professional and polished interface.
+- Consistent with Merchant Space.
+- Responsive desktop and mobile layouts.
+- Day mode and night mode.
+- Clear approval status indicators.
+- Intuitive interactive placement map.
+- Full-page partnership workspace.
+- Minimal Partner Picks identity on product cards.
+- No intrusive advertising appearance.
+- No unnecessary visual clutter.
+- No generic AI-looking interface.
+- Do not copy Temu or other marketplace designs.
+
+Inspect existing components before proposing
+new components.
+
+Reuse existing design patterns where appropriate.
+
+==================================================
+20. REQUIRED PROJECT INVESTIGATION
+==================================================
+
+Before preparing the implementation plan, inspect
+the actual project.
+
+Investigate:
+
+1. Overall project architecture.
+2. Routing structure.
+3. Storefront pages.
+4. Store product grid.
+5. Store banner implementation.
+6. Product landing pages.
+7. Discover More Products implementation.
+8. Reels architecture and browsing behavior.
+9. Stories architecture and browsing behavior.
+10. Merchant Space.
+11. Product management.
+12. Subscription plans and entitlements.
+13. Platform Admin.
+14. Existing permissions and roles.
+15. Notification system.
+16. Authentication.
+17. Database structure.
+18. Existing analytics and tracking.
+19. Existing caching and performance mechanisms.
+
+Identify actual files, components, services, and
+database structures involved.
+
+Do not invent file names or claim that functionality
+exists without verifying it.
+
+Identify reusable components and potential conflicts.
+
+==================================================
+21. REQUIRED IMPLEMENTATION PLAN
+==================================================
+
+After the investigation, prepare a comprehensive
+technical plan containing:
+
+A. CURRENT ARCHITECTURE REVIEW
+
+Explain how the current project works in relevant
+areas.
+
+B. IMPACT ANALYSIS
+
+Identify existing files, components, routes,
+services, and database structures that may need
+changes later.
+
+C. PROPOSED ARCHITECTURE
+
+Explain the recommended system architecture.
+
+D. DATABASE DESIGN
+
+Propose the required entities, relationships,
+indexes, and data structures.
+
+E. PERMISSIONS MATRIX
+
+Explain what Merchant A, Merchant B, and Platform
+Admin can and cannot do.
+
+F. PARTNERSHIP WORKFLOW
+
+Describe the complete request, negotiation,
+approval, activation, and cancellation lifecycle.
+
+G. PLACEMENT ENGINE
+
+Explain how all five placement channels will work.
+
+H. INTERACTIVE PLACEMENT MAP
+
+Explain how visual positions will map to actual
+storefront positions.
+
+I. RECIPROCAL EXPOSURE ALGORITHM
+
+Explain how fair exposure will be calculated.
+
+J. ROTATION SYSTEM
+
+Explain refresh-based and optional timed rotation.
+
+K. SMART FREQUENCY CONTROL
+
+Explain how to protect the user experience.
+
+L. PLATFORM ADMIN CONFIGURATION
+
+Provide the complete administrative configuration
+structure.
+
+M. ANALYTICS
+
+Explain exposure and click tracking per channel.
+
+N. SECURITY
+
+Explain ownership, permissions, validation, and
+abuse prevention.
+
+O. PERFORMANCE
+
+Explain caching, queries, event collection, and
+scalability.
+
+P. UI/UX IMPLEMENTATION
+
+Describe the required interfaces and integration
+with the existing design system.
+
+Q. PHASED IMPLEMENTATION ROADMAP
+
+Divide the future implementation into logical,
+manageable phases.
+
+R. TESTING STRATEGY
+
+Include:
+
+- Unit tests.
+- Integration tests.
+- Permission tests.
+- Partnership workflow tests.
+- Placement approval tests.
+- Product ownership tests.
+- Rotation tests.
+- Frequency control tests.
+- Reels and Stories integration tests.
+- Responsive UI tests.
+- Performance tests.
+- Regression tests.
+
+S. ACCEPTANCE CRITERIA
+
+Provide measurable criteria for every major feature.
+
+==================================================
+22. IMPORTANT DESIGN DECISIONS
+==================================================
+
+Do not silently change any of the agreed requirements.
+
+If you identify conflicts, explain them and propose
+solutions.
+
+Clearly distinguish between:
+
+1. Requirements explicitly agreed upon.
+2. Technical recommendations.
+3. Decisions that still require clarification.
+
+Do not make irreversible assumptions.
+
+Do not hardcode subscription limits, placement
+settings, frequency values, or rotation intervals
+that should be configurable by Platform Admin.
+
+==================================================
+23. FINAL INSTRUCTION
+==================================================
+
+THIS IS A PLAN-ONLY TASK.
+
+Do not write implementation code.
+
+Do not modify files.
+
+Do not modify the database.
+
+Do not run migrations.
+
+Do not redesign existing pages.
+
+Do not make changes to the live project.
+
+First inspect the existing project thoroughly.
+
+Then prepare the complete technical review and
+implementation plan.
+
+At the end, provide:
+
+1. Architecture findings.
+2. Proposed system design.
+3. Files and components potentially affected.
+4. Database changes proposed.
+5. Platform Admin configuration plan.
+6. Security and permissions plan.
+7. Performance considerations.
+8. Phased implementation roadmap.
+9. Testing and acceptance criteria.
+10. Unresolved questions and risks.
+
+STOP AFTER PRESENTING THE PLAN.
+
+WAIT FOR MY EXPLICIT APPROVAL BEFORE IMPLEMENTING
+ANYTHING.
+
+No implementation is authorized by this prompt.

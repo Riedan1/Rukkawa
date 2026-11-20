@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import {
   ShieldCheck,
+  ShieldAlert,
   Lock,
   User,
   Package,
@@ -175,18 +176,43 @@ import {
   buildAdminAuthHeaders,
 } from "../utils/centralGovernanceArchitecture";
 import { Phase3ProductionReadinessCenter } from "./Phase3ProductionReadinessCenter";
+import { BrandIdentityColorManager } from "./BrandIdentityColorManager";
+import {
+  StockNotifyRequest,
+  getStoreNotifyAttentionSummary,
+} from "../utils/stockNotifyAlerts";
+import { PlatformAdminReportsCenter } from "./PlatformAdminReportsCenter";
+import type {
+  StoreReportRecord,
+  StoreReportStatus,
+  StoreReportPriority,
+} from "../utils/storeMoreOptionsLogic";
+import { PartnerPicksAdminWorkspace } from "./PartnerPicksAdminWorkspace";
+import type {
+  PartnerPickChannelId,
+  PartnerPickProductPlacement,
+  PartnerPicksGlobalConfig,
+  PartnerPicksPartnership,
+} from "../types";
+import {
+  createDefaultPartnerPicksGlobalConfig,
+  normalizePartnerPicksGlobalConfig,
+} from "../utils/partnerPicksSchema";
 
 export type AdminTabId =
   | "overview"
   | "stores"
   | "subscriptions"
   | "permissions"
+  | "partner_picks"
   | "products"
   | "categories"
   | "brands"
+  | "brand_identity"
   | "cover_templates"
   | "orders"
   | "reviews"
+  | "reports_center"
   | "global_markets"
   | "domains"
   | "ai_features"
@@ -223,6 +249,52 @@ interface PlatformAdminWorkspaceProps {
   setSubcategories: React.Dispatch<React.SetStateAction<Subcategory[]>>;
   globalAnimationDelay?: number;
   setGlobalAnimationDelay?: (delay: number) => void;
+  stockNotifyRequests?: StockNotifyRequest[];
+  onResolveStockNotifyRequest?: (target: {
+    id?: string;
+    storeId?: string;
+    productId?: string;
+    variantId?: string;
+    nextStatus?: "resolved" | "dismissed";
+  }) => void;
+  onOpenStoreAlertsInMerchant?: (storeId: string) => void;
+  storeReports?: StoreReportRecord[];
+  onUpdateStoreReport?: (
+    reportId: string,
+    updates: {
+      status?: StoreReportStatus;
+      priority?: StoreReportPriority;
+      internalNote?: string;
+    }
+  ) => Promise<void> | void;
+  onInspectReportedStore?: (storeId: string) => void;
+  partnerPicksGlobalConfig?: PartnerPicksGlobalConfig;
+  partnerPicksPartnerships?: PartnerPicksPartnership[];
+  partnerPicksPlacements?: PartnerPickProductPlacement[];
+  partnerPicksAnalyticsByChannel?: Record<
+    PartnerPickChannelId,
+    {
+      channelId: PartnerPickChannelId;
+      opportunities: number;
+      impressions: number;
+      uniqueVisitors: number;
+      clicks: number;
+      skips: number;
+      originalProductOpens: number;
+      ctrPercent: number;
+      totalExposureDurationSeconds: number;
+    }
+  >;
+  onSavePartnerPicksGlobalConfig?: (
+    nextConfig: PartnerPicksGlobalConfig,
+    reason?: string
+  ) => Promise<void>;
+  onPartnerPicksGovernanceAction?: (payload: {
+    targetType: "partnership" | "placement";
+    targetId: string;
+    action: "SUSPEND" | "REINSTATE";
+    reason: string;
+  }) => Promise<void>;
 }
 
 // Sub-component for elegant Product Card rendering in Admin layout
@@ -502,8 +574,135 @@ export default function PlatformAdminWorkspace({
   setSubcategories,
   globalAnimationDelay = 0.5,
   setGlobalAnimationDelay,
+  stockNotifyRequests = [],
+  onResolveStockNotifyRequest,
+  onOpenStoreAlertsInMerchant,
+  storeReports = [],
+  onUpdateStoreReport,
+  onInspectReportedStore,
+  partnerPicksGlobalConfig,
+  partnerPicksPartnerships,
+  partnerPicksPlacements,
+  partnerPicksAnalyticsByChannel,
+  onSavePartnerPicksGlobalConfig,
+  onPartnerPicksGovernanceAction,
 }: PlatformAdminWorkspaceProps) {
   const [testPulse, setTestPulse] = useState(false);
+  const [localPartnerPicksConfig, setLocalPartnerPicksConfig] = useState<PartnerPicksGlobalConfig>(() =>
+    normalizePartnerPicksGlobalConfig(partnerPicksGlobalConfig || createDefaultPartnerPicksGlobalConfig())
+  );
+  const [localPartnerPicksPartnerships, setLocalPartnerPicksPartnerships] = useState<PartnerPicksPartnership[]>(
+    () => partnerPicksPartnerships || []
+  );
+  const [localPartnerPicksPlacements, setLocalPartnerPicksPlacements] = useState<PartnerPickProductPlacement[]>(
+    () => partnerPicksPlacements || []
+  );
+  const [localPartnerPicksAnalyticsByChannel, setLocalPartnerPicksAnalyticsByChannel] = useState<
+    Record<PartnerPickChannelId, any> | undefined
+  >(() => partnerPicksAnalyticsByChannel);
+
+  React.useEffect(() => {
+    if (partnerPicksGlobalConfig) {
+      setLocalPartnerPicksConfig(normalizePartnerPicksGlobalConfig(partnerPicksGlobalConfig));
+    }
+  }, [partnerPicksGlobalConfig]);
+
+  React.useEffect(() => {
+    if (partnerPicksPartnerships) {
+      setLocalPartnerPicksPartnerships(partnerPicksPartnerships);
+    }
+  }, [partnerPicksPartnerships]);
+
+  React.useEffect(() => {
+    if (partnerPicksPlacements) {
+      setLocalPartnerPicksPlacements(partnerPicksPlacements);
+    }
+  }, [partnerPicksPlacements]);
+
+  React.useEffect(() => {
+    if (partnerPicksAnalyticsByChannel) {
+      setLocalPartnerPicksAnalyticsByChannel(partnerPicksAnalyticsByChannel);
+    }
+  }, [partnerPicksAnalyticsByChannel]);
+
+  const refreshPartnerPicksAdminBootstrap = async () => {
+    try {
+      const res = await fetch("/api/partner-picks/bootstrap");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.globalConfig) {
+        setLocalPartnerPicksConfig(normalizePartnerPicksGlobalConfig(data.globalConfig));
+      }
+      if (Array.isArray(data?.partnerships)) {
+        setLocalPartnerPicksPartnerships(data.partnerships);
+      }
+      if (Array.isArray(data?.placements)) {
+        setLocalPartnerPicksPlacements(data.placements);
+      }
+      if (data?.analyticsBreakdownByChannel) {
+        setLocalPartnerPicksAnalyticsByChannel(data.analyticsBreakdownByChannel);
+      }
+    } catch {}
+  };
+
+  React.useEffect(() => {
+    refreshPartnerPicksAdminBootstrap();
+  }, []);
+
+  const handleSavePartnerPicksConfigInternal = async (
+    nextConfig: PartnerPicksGlobalConfig,
+    reason?: string
+  ) => {
+    const normalized = normalizePartnerPicksGlobalConfig(nextConfig);
+    setLocalPartnerPicksConfig(normalized);
+    if (onSavePartnerPicksGlobalConfig) {
+      await onSavePartnerPicksGlobalConfig(normalized, reason);
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/partner-picks/config", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-actor-id": adminUsername || "admin",
+          "x-actor-role": "PlatformAdmin",
+        },
+        body: JSON.stringify({ config: normalized, reason }),
+      });
+      if (res.ok) {
+        const payload = await res.json();
+        if (payload?.globalConfig) {
+          setLocalPartnerPicksConfig(normalizePartnerPicksGlobalConfig(payload.globalConfig));
+        }
+      }
+    } catch {}
+    window.dispatchEvent(new CustomEvent("yume-partner-picks-updated"));
+  };
+
+  const handlePartnerPicksGovernanceInternal = async (payload: {
+    targetType: "partnership" | "placement";
+    targetId: string;
+    action: "SUSPEND" | "REINSTATE";
+    reason: string;
+  }) => {
+    if (onPartnerPicksGovernanceAction) {
+      await onPartnerPicksGovernanceAction(payload);
+      return;
+    }
+    try {
+      await fetch("/api/admin/partner-picks/governance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-actor-id": adminUsername || "admin",
+          "x-actor-role": "PlatformAdmin",
+        },
+        body: JSON.stringify(payload),
+      });
+      await refreshPartnerPicksAdminBootstrap();
+    } catch {}
+    window.dispatchEvent(new CustomEvent("yume-partner-picks-updated"));
+  };
   const [offerPopularSalesThreshold, setOfferPopularSalesThresholdState] = useState<number>(() => getAdminPopularSalesThreshold());
   const [securitySelfTestReport, setSecuritySelfTestReport] = useState<any | null>(null);
   const [isRunningSecurityTests, setIsRunningSecurityTests] = useState(false);
@@ -1583,6 +1782,11 @@ export default function PlatformAdminWorkspace({
     return allProducts.filter((item) => (item.product.stock ?? 10) <= 3).length;
   }, [allProducts]);
 
+  const stockNotifySummary = useMemo(
+    () => getStoreNotifyAttentionSummary(stockNotifyRequests),
+    [stockNotifyRequests]
+  );
+
   const actionableNotifications = useMemo(() => {
     const items: Array<{
       id: string;
@@ -1591,7 +1795,27 @@ export default function PlatformAdminWorkspace({
       severity: "warning" | "info" | "success";
       targetTab: AdminTabId;
       actionLabel: string;
+      onAction?: () => void;
     }> = [];
+
+    if (stockNotifySummary.byStore.length > 0) {
+      stockNotifySummary.byStore.forEach((bucket) => {
+        const topItem = bucket.requests[0];
+        items.push({
+          id: `notif-stock-notify-${bucket.storeId}`,
+          title: `${bucket.storeName}: ${bucket.pendingEntries} stock notify alert${bucket.pendingEntries === 1 ? "" : "s"} (${bucket.totalRequests} customer request${bucket.totalRequests === 1 ? "" : "s"})`,
+          detail: topItem
+            ? `Customer requested restock for ${topItem.productName}${topItem.variantLabel ? ` (${topItem.variantLabel})` : ""}.`
+            : "Customers requested out-of-stock notification.",
+          severity: "warning",
+          targetTab: "stores",
+          actionLabel: onOpenStoreAlertsInMerchant ? "Open Store Alerts" : "View Stores",
+          onAction: onOpenStoreAlertsInMerchant
+            ? () => onOpenStoreAlertsInMerchant(bucket.storeId)
+            : undefined,
+        });
+      });
+    }
 
     if (orderDistributionByStatus.pending > 0) {
       items.push({
@@ -1649,7 +1873,7 @@ export default function PlatformAdminWorkspace({
     }
 
     return items;
-  }, [orderDistributionByStatus.pending, pendingModels.length, inactiveStoresCount, lowStockProductsCount, globalAnnouncement]);
+  }, [stockNotifySummary, onOpenStoreAlertsInMerchant, orderDistributionByStatus.pending, pendingModels.length, inactiveStoresCount, lowStockProductsCount, globalAnnouncement]);
 
   // Sidebar Navigation Groups (MAIN, PLATFORM MANAGEMENT, PLATFORM OPERATIONS, SYSTEM MANAGEMENT)
   const sidebarGroups = useMemo(() => [
@@ -1692,6 +1916,13 @@ export default function PlatformAdminWorkspace({
           badge: "4 Plans",
         },
         {
+          id: "partner_picks" as AdminTabId,
+          label: "Partner Picks",
+          description: "Independent reciprocal merchant partnerships, 5 placement channels, plan limits, and smart frequency governance",
+          icon: SparklesIcon,
+          badge: "5 Channels",
+        },
+        {
           id: "products" as AdminTabId,
           label: "Products",
           description: "Cross-store product catalog moderation, pricing, and inventory oversight",
@@ -1719,6 +1950,13 @@ export default function PlatformAdminWorkspace({
           icon: SparklesIcon,
           badge: coverTemplates.length,
         },
+        {
+          id: "brand_identity" as AdminTabId,
+          label: "Brand Identity & Colors",
+          description: "Centralized control over the 7 platform color palettes, rotation intervals, and header/footer gradients",
+          icon: Palette,
+          badge: "7 Groups",
+        },
       ],
     },
     {
@@ -1738,6 +1976,13 @@ export default function PlatformAdminWorkspace({
           description: "Customer store and product reviews moderation, sentiment filter, and replies",
           icon: MessageSquare,
           badge: allReviews.length,
+        },
+        {
+          id: "reports_center" as AdminTabId,
+          label: "Reports Center",
+          description: "Centralized store reports dashboard, KPIs, investigation status, and internal notes",
+          icon: ShieldAlert,
+          badge: storeReports.length > 0 ? storeReports.length : null,
         },
         {
           id: "global_markets" as AdminTabId,
@@ -1806,6 +2051,7 @@ export default function PlatformAdminWorkspace({
     coverTemplates.length,
     orders.length,
     allReviews.length,
+    storeReports.length,
     allPlatformDomains.length,
     activeAiModel,
     platformCommission,
@@ -3435,7 +3681,13 @@ export default function PlatformAdminWorkspace({
                             </div>
                             <button
                               type="button"
-                              onClick={() => setAdminTab(item.targetTab)}
+                              onClick={() => {
+                                if (item.onAction) {
+                                  item.onAction();
+                                } else {
+                                  setAdminTab(item.targetTab);
+                                }
+                              }}
                               className={YUME_ADMIN_TOKENS.secondaryButtonClass}
                             >
                               {item.actionLabel}
@@ -3504,22 +3756,79 @@ export default function PlatformAdminWorkspace({
 
         {/* TAB: Stores (Version 2.1 — Strictly 3 Columns, Real Server Telemetry, Coordinated Header Workspace & Safe Lifecycle) */}
         {adminTab === "stores" && (
-          <StoresManagementWorkspace
-            stores={stores}
-            setStores={setStores}
-            orders={orders}
-            activeAdmin={activeAdmin}
-            adminUsername={adminUsername}
-            darkMode={darkMode}
-            currentSlideColor={currentSlideColor}
-            storesSubNav={storesSubNav}
-            setStoresSubNav={setStoresSubNav}
-            storeQuery={storeQuery}
-            setStoreQuery={setStoreQuery}
-            openStoreGovernanceModal={openStoreGovernanceModal}
-            showAdminToast={showAdminToast}
-            setConfirmModalState={setConfirmModalState}
-          />
+          <div className="flex flex-col gap-5">
+            {stockNotifySummary.byStore.length > 0 && (
+              <div
+                data-testid="admin-stores-stock-notify-attention"
+                className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/60 shadow-xs flex flex-col gap-3 text-left"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-extrabold text-stone-900 dark:text-white">
+                      Stores With Customer Stock Notify Attention ({stockNotifySummary.byStore.length})
+                    </h4>
+                  </div>
+                  <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                    {stockNotifySummary.totalCustomerRequests} total request{stockNotifySummary.totalCustomerRequests === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {stockNotifySummary.byStore.map((bucket) => (
+                    <div
+                      key={bucket.storeId}
+                      className="p-3 rounded-xl bg-stone-50/90 dark:bg-slate-950/60 border border-stone-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-stone-900 dark:text-white truncate">
+                          {bucket.storeName}
+                        </div>
+                        <div className="text-[11px] text-stone-500 dark:text-slate-400 truncate mt-0.5">
+                          {bucket.requests[0]?.productName}
+                          {bucket.requests[0]?.variantLabel ? ` • ${bucket.requests[0].variantLabel}` : ""}
+                          {" "}({bucket.totalRequests} req)
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {onOpenStoreAlertsInMerchant && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenStoreAlertsInMerchant(bucket.storeId)}
+                            className="px-2.5 py-1.5 rounded-lg bg-[#1e2631] hover:bg-slate-800 dark:bg-sky-500 dark:text-slate-950 text-white text-[11px] font-bold cursor-pointer"
+                          >
+                            Open Store Alerts
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onResolveStockNotifyRequest?.({ storeId: bucket.storeId, nextStatus: "dismissed" })}
+                          className="px-2 py-1.5 rounded-lg border border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-300 hover:bg-stone-100 text-[11px] font-semibold cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <StoresManagementWorkspace
+              stores={stores}
+              setStores={setStores}
+              orders={orders}
+              activeAdmin={activeAdmin}
+              adminUsername={adminUsername}
+              darkMode={darkMode}
+              currentSlideColor={currentSlideColor}
+              storesSubNav={storesSubNav}
+              setStoresSubNav={setStoresSubNav}
+              storeQuery={storeQuery}
+              setStoreQuery={setStoreQuery}
+              openStoreGovernanceModal={openStoreGovernanceModal}
+              showAdminToast={showAdminToast}
+              setConfirmModalState={setConfirmModalState}
+            />
+          </div>
         )}
 
         {/* TAB: Catalog Moderation & Policy Enforcement */}
@@ -4343,6 +4652,26 @@ export default function PlatformAdminWorkspace({
               )}
             </div>
           </div>
+        )}
+
+        {/* TAB: Centralized Platform Admin Reports Center */}
+        {adminTab === "reports_center" && (
+          <PlatformAdminReportsCenter
+            reports={storeReports}
+            stores={stores}
+            onUpdateReport={async (reportId, updates) => {
+              if (onUpdateStoreReport) {
+                await onUpdateStoreReport(reportId, updates);
+              }
+            }}
+            onInspectStore={(storeId) => {
+              if (onInspectReportedStore) {
+                onInspectReportedStore(storeId);
+              } else {
+                setAdminTab("stores");
+              }
+            }}
+          />
         )}
 
         {/* TAB: Security, 5-Role Admin RBAC & Database Backup/Restore */}
@@ -7840,6 +8169,25 @@ export default function PlatformAdminWorkspace({
 
         {adminTab === "global_markets" && (
           <PlatformCulturalAndMarketAdmin adminEmail={adminUsername} />
+        )}
+
+        {adminTab === "brand_identity" && (
+          <BrandIdentityColorManager
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            adminUsername={adminUsername}
+          />
+        )}
+
+        {adminTab === "partner_picks" && (
+          <PartnerPicksAdminWorkspace
+            globalConfig={localPartnerPicksConfig}
+            partnerships={localPartnerPicksPartnerships}
+            placements={localPartnerPicksPlacements}
+            analyticsBreakdownByChannel={localPartnerPicksAnalyticsByChannel}
+            onSaveGlobalConfig={handleSavePartnerPicksConfigInternal}
+            onAdminGovernanceAction={handlePartnerPicksGovernanceInternal}
+          />
         )}
           </div>
         </div>

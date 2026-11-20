@@ -1,5 +1,17 @@
 import fs from "fs";
 import path from "path";
+import type {
+  MerchantPartnerPicksProfile,
+  PartnerPickProductPlacement,
+  PartnerPicksBidirectionalExposureLedger,
+  PartnerPicksChannelAnalyticsEvent,
+  PartnerPicksGlobalConfig,
+  PartnerPicksPartnership,
+} from "../src/types";
+import {
+  createDefaultPartnerPicksGlobalConfig,
+  normalizePartnerPicksGlobalConfig,
+} from "../src/utils/partnerPicksSchema";
 
 function getDataDir(): string {
   return process.env.YUME_DATA_DIR
@@ -233,6 +245,10 @@ export interface LocalDbSchema {
   shipmentReturnEvents?: ShipmentReturnEventRecord[];
   mediaAssets?: any[];
   piiSpool?: any[];
+  stockNotifyRequests?: any[];
+  storeReports?: any[];
+  userStoreMutes?: Record<string, any[]>;
+  userStoreBlocks?: Record<string, any[]>;
   subscriptionGovernance?: SubscriptionGovernanceState;
   clusterFencingState?: ClusterFencingState;
   domainSettings?: {
@@ -267,6 +283,15 @@ export interface LocalDbSchema {
     securityEpoch?: number;
     updatedAt?: string;
   };
+  /**
+   * Partner Picks Persistence Collections (Phase 2 — strictly independent from paid advertising)
+   */
+  partnerPicksConfig?: PartnerPicksGlobalConfig;
+  partnerPicksProfiles?: Record<string, MerchantPartnerPicksProfile>;
+  partnerPicksPartnerships?: PartnerPicksPartnership[];
+  partnerPicksPlacements?: PartnerPickProductPlacement[];
+  partnerPicksExposureLedger?: Record<string, PartnerPicksBidirectionalExposureLedger>;
+  partnerPicksAnalyticsEvents?: PartnerPicksChannelAnalyticsEvent[];
   lastUpdated: string;
 }
 
@@ -443,6 +468,7 @@ const DEFAULT_DB: LocalDbSchema = {
   shipmentReturnEvents: [],
   mediaAssets: [],
   piiSpool: [],
+  stockNotifyRequests: [],
   subscriptionGovernance: createDefaultSubscriptionGovernance(),
   clusterFencingState: createDefaultClusterFencingState(),
   shipments: [
@@ -553,6 +579,12 @@ const DEFAULT_DB: LocalDbSchema = {
     },
     updatedAt: new Date().toISOString(),
   },
+  partnerPicksConfig: createDefaultPartnerPicksGlobalConfig(),
+  partnerPicksProfiles: {},
+  partnerPicksPartnerships: [],
+  partnerPicksPlacements: [],
+  partnerPicksExposureLedger: {},
+  partnerPicksAnalyticsEvents: [],
   lastUpdated: new Date().toISOString(),
 };
 
@@ -608,6 +640,25 @@ function normalizeDbDefaults(parsed: any): LocalDbSchema {
   }
   if (!parsed.domainSettings) {
     parsed.domainSettings = cloneSnapshot(DEFAULT_DB.domainSettings);
+  }
+  parsed.partnerPicksConfig = normalizePartnerPicksGlobalConfig(parsed.partnerPicksConfig);
+  if (!parsed.partnerPicksProfiles || typeof parsed.partnerPicksProfiles !== "object") {
+    parsed.partnerPicksProfiles = {};
+  }
+  if (!Array.isArray(parsed.partnerPicksPartnerships)) {
+    parsed.partnerPicksPartnerships = [];
+  }
+  if (!Array.isArray(parsed.partnerPicksPlacements)) {
+    parsed.partnerPicksPlacements = [];
+  }
+  if (
+    !parsed.partnerPicksExposureLedger ||
+    typeof parsed.partnerPicksExposureLedger !== "object"
+  ) {
+    parsed.partnerPicksExposureLedger = {};
+  }
+  if (!Array.isArray(parsed.partnerPicksAnalyticsEvents)) {
+    parsed.partnerPicksAnalyticsEvents = [];
   }
   return parsed as LocalDbSchema;
 }
@@ -703,6 +754,9 @@ export function getDbPerformanceMetrics() {
       auditLogs: db.governanceState?.auditLogs?.length || 0,
       inventoryLedger: db.inventoryLedger?.length || 0,
       apiIdempotencyRecords: db.apiIdempotencyRecords?.length || 0,
+      partnerPicksPartnerships: db.partnerPicksPartnerships?.length || 0,
+      partnerPicksPlacements: db.partnerPicksPlacements?.length || 0,
+      partnerPicksAnalyticsEvents: db.partnerPicksAnalyticsEvents?.length || 0,
     },
   };
 }

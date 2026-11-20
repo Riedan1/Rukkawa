@@ -71,6 +71,7 @@ import {
   DollarSign,
   Globe,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
 import {
   extractOfferFromOrder,
@@ -1272,7 +1273,7 @@ export default function OrdersModule({
                   className="w-1.5 h-5 rounded-full shrink-0"
                   style={{ backgroundColor: "var(--yume-theme-header-color, #0b2447)" }}
                 />
-                <Package className="w-4 h-4 text-stone-700 dark:text-slate-300 shrink-0" />
+                <ClipboardList className="w-4 h-4 text-stone-700 dark:text-slate-300 shrink-0" />
                 <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight font-sans">
                   Step {activeStageObj.step}: {activeStageObj.label}
                 </h3>
@@ -1658,7 +1659,7 @@ export default function OrdersModule({
                     <div className="p-4 rounded-xl border border-stone-200/80 dark:border-slate-800 bg-stone-50/70 dark:bg-slate-950/60 text-left flex flex-col justify-between">
                       <div className="flex items-center justify-between text-xs text-stone-500">
                         <span className="font-bold uppercase tracking-wider text-[10px]">Total Orders</span>
-                        <Package className="w-3.5 h-3.5 text-stone-400" />
+                        <ClipboardList className="w-3.5 h-3.5 text-stone-400" />
                       </div>
                       <div className="mt-2">
                         <div className="text-xl font-black font-mono tabular-nums text-stone-900 dark:text-white">
@@ -2587,7 +2588,7 @@ export default function OrdersModule({
           {/* ORDERS LIST DISPLAY: EMPTY STATE, TABLE VIEW, OR CARDS VIEW */}
           {paginatedOrders.length === 0 ? (
             <div className="rounded-[8px] p-12 border border-[#cbd5e1] dark:border-slate-800 text-center bg-[#f8fafc] dark:bg-slate-900/40">
-              <Package className="w-8 h-8 text-slate-400 mx-auto mb-2.5" />
+              <ClipboardList className="w-8 h-8 text-slate-400 mx-auto mb-2.5" strokeWidth={1.75} />
               <h3 className="text-sm font-black font-mono text-slate-900 dark:text-white">
                 {statusFilter === "all"
                   ? "No orders match your current search"

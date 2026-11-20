@@ -1,11 +1,14 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
-  getFirestore, 
+  getFirestore,
+  initializeFirestore,
+  setLogLevel,
   doc, 
   getDoc, 
   setDoc, 
   getDocFromServer,
-  serverTimestamp
+  serverTimestamp,
+  type Firestore
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 import { auth } from "./googleSheets";
@@ -16,11 +19,29 @@ export const isPlaceholderConfig = !firebaseConfig.apiKey ||
   firebaseConfig.apiKey.startsWith("AIzaSyDemo") ||
   firebaseConfig.projectId === "algerian-commerce-map";
 
+// Silence internal @firebase/firestore WebChannel timeout console.error spam in iframe/offline environments
+try {
+  setLogLevel("silent");
+} catch (_) {}
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Use getFirestore with databaseId matching firebase skill specification
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Use initializeFirestore with experimentalAutoDetectLongPolling and databaseId so iframe/proxy connections don't hang
+function initFirestoreDb(): Firestore {
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+}
+
+export const db = initFirestoreDb();
 
 export enum OperationType {
   CREATE = 'create',
@@ -49,8 +70,14 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isTransientOffline =
+    errMsg.includes("client is offline") ||
+    errMsg.includes("Could not reach Cloud Firestore backend") ||
+    errMsg.includes("unavailable");
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -65,17 +92,23 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  if (isTransientOffline) {
+    console.warn("Firestore operating in offline fallback mode:", errInfo.path);
+  } else {
+    console.warn("Firestore Error:", JSON.stringify(errInfo));
+  }
   throw new Error(JSON.stringify(errInfo));
 }
 
 export async function testFirestoreConnection() {
   if (isPlaceholderConfig) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+      // Client is temporarily offline or WebChannel is initializing; operate gracefully with local fallback
+      console.warn("Firestore client is currently offline; operating with local persistence fallback.");
     }
   }
 }

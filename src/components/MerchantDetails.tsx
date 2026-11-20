@@ -11,6 +11,17 @@ import { VisitorAnalyticsModule } from "./VisitorAnalyticsModule";
 import { ShippingTrackingModal } from "./ShippingTrackingModal";
 import { SponsoredAdBanner } from "./SponsoredAdBanner";
 import { MerchantCampaignStudio } from "./MerchantCampaignStudio";
+import { PartnerPicksMerchantWorkspace } from "./PartnerPicksMerchantWorkspace";
+import type {
+  MerchantPartnerPicksProfile,
+  PartnerPickChannelId,
+  PartnerPickProductPlacement,
+  PartnerPickProposedOption,
+  PartnerPicksBidirectionalExposureLedger,
+  PartnerPicksGlobalConfig,
+  PartnerPicksPartnership,
+} from "../types";
+import { createDefaultPartnerPicksGlobalConfig } from "../utils/partnerPicksSchema";
 import { YumeLogo } from "./YumeLogo";
 import {
   FlashSaleCountdownTimer,
@@ -148,7 +159,8 @@ import {
   ChevronUp,
   FileText,
   Columns,
-  Link2
+  Link2,
+  ClipboardList
 } from "lucide-react";
 import { MerchantStore, Product, Order, Coupon, CategoryTemplate, CategoryTemplateField, MainCategory, Subcategory } from "../types";
 import { DEFAULT_CATEGORY_TEMPLATES } from "../data/categoryTemplates";
@@ -185,6 +197,12 @@ import MerchantDomainManager from "./MerchantDomainManager";
 import { VerifiedBadge } from "./VerifiedBadge";
 import { motion, AnimatePresence } from "motion/react";
 import { translations } from "../translations";
+import {
+  StockNotifyRequest,
+  getPendingNotifyRequestsForStore,
+  getStoreNotifyAttentionSummary,
+  formatWaitingCountLabel,
+} from "../utils/stockNotifyAlerts";
 import {
   ResponsiveContainer,
   LineChart,
@@ -1020,6 +1038,59 @@ interface MerchantDashboardProps {
   subcategories?: Subcategory[];
   globalAnimationDelay?: number;
   onSelectProduct?: (product: Product | null) => void;
+  stockNotifyRequests?: StockNotifyRequest[];
+  onResolveStockNotifyRequest?: (target: {
+    id?: string;
+    storeId?: string;
+    productId?: string;
+    variantId?: string;
+    nextStatus?: "resolved" | "dismissed";
+  }) => void;
+  partnerPicksContext?: {
+    globalConfig: PartnerPicksGlobalConfig;
+    profilesByStoreId: Record<string, Partial<MerchantPartnerPicksProfile>>;
+    partnerships: PartnerPicksPartnership[];
+    placements: PartnerPickProductPlacement[];
+    exposureLedgers: Record<string, PartnerPicksBidirectionalExposureLedger>;
+    initialPartnershipId?: string | null;
+    onSaveProfile: (
+      storeId: string,
+      profile: Partial<MerchantPartnerPicksProfile>
+    ) => Promise<void>;
+    onSendPartnershipRequest: (payload: {
+      initiatorStoreId: string;
+      targetStoreId: string;
+      durationDays: number;
+      proposedChannels: Record<PartnerPickChannelId, boolean>;
+      requestMessage: string;
+    }) => Promise<void>;
+    onRespondToPartnership: (
+      partnershipId: string,
+      actingStoreId: string,
+      decision: "ACCEPT" | "REJECT" | "CANCEL"
+    ) => Promise<void>;
+    onProposePlacement: (payload: {
+      partnershipId: string;
+      sourceStoreId: string;
+      hostStoreId: string;
+      productId: string;
+      channelId: PartnerPickChannelId;
+      proposedOptions: PartnerPickProposedOption[];
+    }) => Promise<void>;
+    onHostSelectPlacement: (
+      placementId: string,
+      decision: "SELECT" | "REJECT",
+      selectedOptionId?: string | null,
+      note?: string
+    ) => Promise<void>;
+    onProposerConfirmPlacement: (
+      placementId: string,
+      decision: "APPROVE" | "REJECT",
+      note?: string
+    ) => Promise<void>;
+    onRemovePlacement?: (placementId: string) => Promise<void>;
+    onViewStore?: (store: MerchantStore) => void;
+  };
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -1291,7 +1362,10 @@ export default function MerchantDashboard({
   mainCategories = [],
   subcategories = [],
   globalAnimationDelay = 0.5,
-  onSelectProduct
+  onSelectProduct,
+  stockNotifyRequests = [],
+  onResolveStockNotifyRequest,
+  partnerPicksContext,
 }: MerchantDashboardProps) {
   const [localMerchantSubTab, setLocalMerchantSubTab] = useState<string>("home");
   const merchantSubTab = propMerchantSubTab !== undefined ? propMerchantSubTab : localMerchantSubTab;
@@ -1602,6 +1676,23 @@ export default function MerchantDashboard({
     return activeAlertProducts;
   }, [stockAlertFilter, activeAlertProducts, outOfStockProducts, warningStockProducts]);
 
+  const pendingNotifyForStore = useMemo(
+    () => getPendingNotifyRequestsForStore(stockNotifyRequests, myStore.id),
+    [stockNotifyRequests, myStore.id]
+  );
+
+  const notifyAttentionSummary = useMemo(
+    () => getStoreNotifyAttentionSummary(stockNotifyRequests),
+    [stockNotifyRequests]
+  );
+
+  const otherStoresWithNotifyAttention = useMemo(
+    () => notifyAttentionSummary.byStore.filter((b) => b.storeId !== myStore.id),
+    [notifyAttentionSummary, myStore.id]
+  );
+
+  const totalStoreAttentionCount = activeAlertProducts.length + pendingNotifyForStore.length;
+
   const handleUpdateStockThreshold = (newVal: number) => {
     const val = Math.max(0, Math.min(500, newVal));
     setStockThreshold(val);
@@ -1676,8 +1767,51 @@ export default function MerchantDashboard({
           return store;
         })
       );
+      onResolveStockNotifyRequest?.({
+        storeId: myStore.id,
+        productId,
+        nextStatus: "resolved",
+      });
       setMerchantFeedbackMessage(`Restocked product in real-time.`);
     }
+  };
+
+  const handleRestockNotifyRequest = (req: StockNotifyRequest, addAmount: number = 10) => {
+    if (setStores) {
+      setStores((prevStores) =>
+        prevStores.map((store) => {
+          if (store.id !== req.storeId) return store;
+          return {
+            ...store,
+            products: store.products.map((p) => {
+              if (p.id !== req.productId) return p;
+              const nextVariants = Array.isArray(p.variants)
+                ? p.variants.map((v) => {
+                    const matchesVariant =
+                      (req.variantId && v.id === req.variantId) ||
+                      (req.variantLabel && v.name && v.name.toLowerCase() === req.variantLabel.toLowerCase());
+                    if (!matchesVariant) return v;
+                    return {
+                      ...v,
+                      stock: Math.max(0, Number(v.stock || 0) + addAmount),
+                      availability: "in_stock",
+                    };
+                  })
+                : p.variants;
+              return {
+                ...p,
+                stock: Math.max(addAmount, (p.stock || 0) + addAmount),
+                variants: nextVariants,
+              };
+            }),
+          };
+        })
+      );
+    }
+    onResolveStockNotifyRequest?.({ id: req.id, nextStatus: "resolved" });
+    setMerchantFeedbackMessage(
+      `Restocked ${req.productName}${req.variantLabel ? ` (${req.variantLabel})` : ""} (+${addAmount} units) and cleared the customer notify alert.`
+    );
   };
 
   const handleBulkRestock = (productIds: string[], addAmount: number) => {
@@ -1699,6 +1833,13 @@ export default function MerchantDashboard({
           return store;
         })
       );
+      productIds.forEach((productId) => {
+        onResolveStockNotifyRequest?.({
+          storeId: myStore.id,
+          productId,
+          nextStatus: "resolved",
+        });
+      });
       setMerchantFeedbackMessage(`Successfully restocked ${productIds.length} critical products (+${addAmount} units each).`);
     }
   };
@@ -2368,18 +2509,17 @@ export default function MerchantDashboard({
     video: false,
   });
 
-  // 6-Step Guided Walkthrough Wizard States
+  // 4-Step Guided Walkthrough Wizard States (plus dynamic Sizing & Fit step 3.5 when eligible)
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [activeStepAdvices, setActiveStepAdvices] = useState<Record<number, string>>(() => ({
     1: getRandomStepAdvice(1),
     2: getRandomStepAdvice(2),
     4: getRandomStepAdvice(4),
-    5: getRandomStepAdvice(5),
   }));
 
   // Randomly refresh the advice whenever the merchant navigates to that step
   useEffect(() => {
-    if (wizardStep !== 3) {
+    if (wizardStep !== 3 && wizardStep !== 3.5 && wizardStep <= 4) {
       setActiveStepAdvices((prev) => ({
         ...prev,
         [wizardStep]: getRandomStepAdvice(wizardStep),
@@ -2740,7 +2880,7 @@ export default function MerchantDashboard({
   }, [wizardVariantAttrs, wizardProductSizes]);
 
   const activeWizardStepSequence = useMemo(
-    () => (isEligibleForSizingFit ? [1, 2, 3, 3.5, 4, 5] : [1, 2, 3, 4, 5]),
+    () => (isEligibleForSizingFit ? [1, 2, 3, 3.5, 4] : [1, 2, 3, 4]),
     [isEligibleForSizingFit]
   );
 
@@ -2757,12 +2897,13 @@ export default function MerchantDashboard({
   }, [isEligibleForSizingFit, detectedSizingProfile, JSON.stringify(activeStep3Sizes)]);
 
   const handleSelectStep = (targetStep: number) => {
-    if (targetStep === wizardStep) return;
+    const normalizedTarget = targetStep > 4 ? 4 : targetStep;
+    if (normalizedTarget === wizardStep) return;
 
     // Prevent skipping steps forward if any previous step is missing required fields
-    if (targetStep > wizardStep) {
+    if (normalizedTarget > wizardStep) {
       for (const s of activeWizardStepSequence) {
-        if (s < targetStep && s !== 3.5 && !validateWizardStep(s)) {
+        if (s < normalizedTarget && s !== 3.5 && !validateWizardStep(s)) {
           setWizardStep(s);
           setWizardShowErrors(true);
           return;
@@ -2770,8 +2911,229 @@ export default function MerchantDashboard({
       }
     }
 
-    setWizardStep(targetStep);
+    setWizardStep(normalizedTarget);
     setWizardShowErrors(false);
+  };
+
+  const handleDirectPublishWizardProduct = () => {
+    let firstFailedStep = -1;
+    for (let st = 1; st <= 4; st++) {
+      if (!validateWizardStep(st)) {
+        firstFailedStep = st;
+        break;
+      }
+    }
+    if (firstFailedStep !== -1) {
+      setWizardStep(firstFailedStep);
+      setWizardShowErrors(true);
+      return;
+    }
+
+    confetti({
+      particleCount: 150,
+      spread: 80,
+      origin: { y: 0.6 }
+    });
+
+    const isEdit = !!editingProduct;
+
+    const colorAttr = wizardVariantAttrs?.find(a =>
+      ["color", "couleur", "لون", "اللون", "shade", "colors", "finition"].some(c => a.name.toLowerCase().includes(c))
+    );
+    const sizeAttr = wizardVariantAttrs?.find(a =>
+      ["size", "taille", "مقاس", "حجم", "pointure"].some(s => a.name.toLowerCase().includes(s))
+    );
+
+    const resolveDraftSwatchHex = (colorName: string): string => {
+      if (!colorName) return "#6366f1";
+      if (colorName.startsWith("#") || colorName.startsWith("rgb")) return colorName;
+      const map: Record<string, string> = {
+        black: "#111827", noir: "#111827", "أسود": "#111827", "اسود": "#111827",
+        white: "#ffffff", blanc: "#ffffff", "أبيض": "#ffffff", "ابيض": "#ffffff",
+        red: "#dc2626", rouge: "#dc2626", "أحمر": "#dc2626", "احمر": "#dc2626",
+        blue: "#2563eb", bleu: "#2563eb", "أزرق": "#2563eb", "ازرق": "#2563eb",
+        green: "#16a34a", vert: "#16a34a", "أخضر": "#16a34a", "اخضر": "#16a34a",
+        yellow: "#eab308", jaune: "#eab308", "أصفر": "#eab308", "اصفر": "#eab308",
+        brown: "#78350f", marron: "#78350f", "بني": "#78350f",
+        grey: "#6b7280", gray: "#6b7280", gris: "#6b7280", "رمادي": "#6b7280",
+        pink: "#ec4899", rose: "#ec4899", "وردي": "#ec4899", "زهري": "#ec4899",
+        gold: "#eab308", "ذهبي": "#eab308",
+        silver: "#94a3b8", argent: "#94a3b8", "فضي": "#94a3b8",
+        orange: "#ea580c", "برتقالي": "#ea580c",
+        beige: "#f5ebe0", "بيج": "#f5ebe0",
+        navy: "#1e3a8a", "كحلي": "#1e3a8a",
+        cream: "#fef3c7", "كريمي": "#fef3c7"
+      };
+      const lower = colorName.toLowerCase().trim();
+      if (map[lower]) return map[lower];
+      for (const [k, v] of Object.entries(map)) {
+        if (lower.includes(k) || k.includes(lower)) return v;
+      }
+      return "#6366f1";
+    };
+
+    const derivedColors = colorAttr && colorAttr.tags.length > 0
+      ? colorAttr.tags.map(t => ({ name: t, hex: resolveDraftSwatchHex(t) }))
+      : (isEdit ? (editingProduct.colors || []) : []);
+    const derivedSizes = sizeAttr && sizeAttr.tags.length > 0
+      ? sizeAttr.tags
+      : (wizardProductSizes && wizardProductSizes.length > 0 ? wizardProductSizes : (isEdit ? (editingProduct.sizes || []) : []));
+
+    const combinedSpecs = [...(wizardProductSpecs || [])];
+    if (wizardVariantsEnabled && wizardVariantAttrs && wizardVariantAttrs.length > 0) {
+      wizardVariantAttrs.forEach(attr => {
+        if (attr.name && attr.tags.length > 0) {
+          const alreadyHas = combinedSpecs.some(s => s.key.toLowerCase() === attr.name.toLowerCase());
+          if (!alreadyHas) {
+            combinedSpecs.push({ key: attr.name, value: attr.tags.join(" / ") });
+          }
+        }
+      });
+    }
+
+    const totalVariantStock = wizardVariantsEnabled && wizardProductVariants && wizardProductVariants.length > 0
+      ? wizardProductVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
+      : (wizardColorStockTrackingEnabled && wizardColorSwatches && wizardColorSwatches.length > 0
+          ? wizardColorSwatches.reduce((acc: number, s: any) => acc + (Number(s.stock) || 0), 0)
+          : (wizardStock === "" ? 10 : Number(wizardStock)));
+
+    const autoLandingHtml = generateStandaloneAdLandingPageHtml({
+      title: blankProductName || "Artisan Hand-Crafted Masterpiece",
+      sku: blankProductSku || "SKU-001",
+      category: blankProductCategory || "Crafts",
+      description: wizardProductStory || "",
+      technicalDescription: blankProductDescription || "",
+      seoKeywords: wizardSeoKeywords || "",
+      currency: wizardCurrency,
+      basePrice: Number(blankProductPrice),
+      discountEnabled: wizardDiscountEnabled,
+      discountPercent: wizardDiscountPercent,
+      carrier: wizardDeliveryCompany || "Yalidine Express",
+      brandColor: blankProductBrandColor || currentSlideColor,
+      images: wizardImages.filter(Boolean),
+      videoLinks: wizardLinks.filter(Boolean),
+      specs: combinedSpecs,
+      variants: wizardVariantsEnabled ? wizardProductVariants : [],
+      colorSwatches: wizardColorSwatches,
+      sizes: derivedSizes || [],
+      sizePrices: wizardSizePrices,
+      storyEnabled: wizardAdvancedStoryEnabled,
+      storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
+      facebookPixelId: wizardFacebookPixelId,
+      tiktokPixelId: wizardTiktokPixelId,
+    });
+
+    const newWizardProductDraft = {
+      id: isEdit ? editingProduct.id : `p-wizard-${Date.now()}`,
+      name: blankProductName || "Artisan Hand-Crafted Masterpiece",
+      price: Number(blankProductPrice),
+      purchasePrice: wizardPurchasePrice === "" ? 0 : Number(wizardPurchasePrice),
+      buyPrice: wizardPurchasePrice === "" ? 0 : Number(wizardPurchasePrice),
+      shippingType: wizardShippingType,
+      realDeliveryCost: Number(wizardRealDeliveryCost || 450),
+      shippingCost: wizardShippingType === "free" ? 0 : Number(wizardRealDeliveryCost || 450),
+      deliveryCompany: wizardDeliveryCompany || connectedDeliveryCompanies[0]?.name || "Yalidine Express",
+      description: wizardProductStory || blankProductDescription || (generatedCopy?.description_en || ""),
+      imageUrl: wizardImages[0] || "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80",
+      images: wizardImages.filter(Boolean),
+      category: blankProductCategory as any,
+      stock: totalVariantStock,
+      rating: isEdit ? (editingProduct.rating || 4.9) : 4.9,
+      reviewsCount: isEdit ? (editingProduct.reviewsCount || 1) : 1,
+      reviews: isEdit ? (editingProduct.reviews || []) : [],
+      verified: isEdit ? (editingProduct.verified !== undefined ? editingProduct.verified : true) : true,
+      sku: blankProductSku || `DZ-${(blankProductCategory || "Craft").substring(0, 3).toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`,
+      colors: wizardColorSwatches && wizardColorSwatches.length > 0
+        ? wizardColorSwatches.map((s, sIdx) => {
+            const activePrimaryImgs = wizardImages.filter(Boolean);
+            const primaryImg = s.imageUrl || (s.images && s.images[0]) || activePrimaryImgs[sIdx] || "";
+            const detailImgs = wizardDetailedImagesPerColorEnabled && primaryImg
+              ? (wizardDetailedImagesByPrimary[primaryImg] || []).filter(Boolean).slice(0, 5)
+              : [];
+            const mergedImgs = wizardDetailedImagesPerColorEnabled && primaryImg
+              ? [primaryImg, ...detailImgs]
+              : (s.images && s.images.length > 0 ? s.images : (primaryImg ? [primaryImg] : []));
+            return {
+              name: s.name,
+              hex: s.hex || resolveDraftSwatchHex(s.name),
+              imageUrl: primaryImg,
+              images: mergedImgs,
+              isHot: !!s.isHot,
+              price: s.price !== undefined ? Number(s.price) : undefined,
+              stock: s.stock !== undefined && s.stock !== "" ? Number(s.stock) : undefined
+            };
+          })
+        : derivedColors.map((dc: any, dcIdx: number) => {
+            const activePrimaryImgs = wizardImages.filter(Boolean);
+            const primaryImg = dc.imageUrl || activePrimaryImgs[dcIdx] || "";
+            const detailImgs = wizardDetailedImagesPerColorEnabled && primaryImg
+              ? (wizardDetailedImagesByPrimary[primaryImg] || []).filter(Boolean).slice(0, 5)
+              : [];
+            return {
+              ...dc,
+              imageUrl: primaryImg || dc.imageUrl,
+              images: wizardDetailedImagesPerColorEnabled && primaryImg ? [primaryImg, ...detailImgs] : (dc.images || (primaryImg ? [primaryImg] : []))
+            };
+          }),
+      colorVariantStyle: wizardColorDisplayStyle,
+      colorStockTrackingEnabled: wizardColorStockTrackingEnabled,
+      detailedImagesPerColorEnabled: wizardDetailedImagesPerColorEnabled,
+      detailedImagesByPrimary: wizardDetailedImagesPerColorEnabled ? wizardDetailedImagesByPrimary : {},
+      sizes: derivedSizes,
+      sizePrices: wizardSizePrices,
+      sizesWithPrices: (derivedSizes || []).map((s: string) => ({
+        name: s,
+        price: wizardSizePrices?.[s] !== undefined ? Number(wizardSizePrices[s]) : undefined
+      })),
+      specifications: combinedSpecs.length > 0 ? combinedSpecs : (isEdit ? (editingProduct.specifications || []) : []),
+      hashtags: wizardSeoKeywords.trim() || undefined,
+      description_ar: isEdit ? (editingProduct.description_ar || "") : (generatedCopy?.description_ar || manualProductForm.description_ar || ""),
+      description_fr: isEdit ? (editingProduct.description_fr || "") : (generatedCopy?.description_fr || manualProductForm.description_fr || ""),
+      description_en: wizardProductStory || blankProductDescription || (generatedCopy?.description_en || ""),
+      videoUrl: wizardLinks[0] || "",
+      videoUrls: wizardLinks.filter(Boolean),
+      videoMetadata: isEdit ? (editingProduct.videoMetadata || {}) : {},
+      discountEnabled: wizardDiscountEnabled,
+      discountPercent: wizardDiscountPercent,
+      timerEnabled: wizardTimerEnabled,
+      timerHours: wizardTimerHours,
+      timerStyle: wizardTimerStyle,
+      currency: wizardCurrency,
+      uploadedLandingPageContent: wizardLandingPageContent || autoLandingHtml,
+      advancedLandingPageEnabled: wizardAdvancedStoryEnabled,
+      advancedProductStorySections: wizardAdvancedStorySections,
+      variants: wizardVariantsEnabled ? wizardProductVariants : [],
+      isBundle: wizardBundleEnabled,
+      bundleItems: wizardBundleEnabled ? wizardBundleItems : [],
+      bundlePrice: wizardBundleEnabled ? Number(wizardBundlePrice) : Number(blankProductPrice),
+      offersConfig: wizardOffersConfig,
+      sizingFitConfig:
+        isEligibleForSizingFit && wizardSizingFitConfig?.enabled
+          ? wizardSizingFitConfig
+          : undefined,
+    };
+
+    setStores((prevStores) =>
+      prevStores.map((s) => {
+        if (s.id === myStore.id) {
+          let updatedProducts;
+          if (isEdit) {
+            updatedProducts = s.products.map(p => p.id === editingProduct.id ? newWizardProductDraft : p);
+          } else {
+            updatedProducts = [newWizardProductDraft, ...s.products];
+          }
+          return {
+            ...s,
+            products: updatedProducts,
+          };
+        }
+        return s;
+      })
+    );
+
+    setMerchantFeedbackMessage(isEdit ? "Your masterfully modified product page has been saved successfully!" : "Your masterfully designed product page has been saved to your active catalog successfully!");
+    localStorage.removeItem("yomi_product_creation_autosave");
+    setMerchantSubTab("products");
   };
 
   const handleImageUploadFiles = (files: FileList | null) => {
@@ -3366,7 +3728,7 @@ export default function MerchantDashboard({
         if (data.blankProductNotes !== undefined) setBlankProductNotes(data.blankProductNotes);
         if (data.blankProductBrandColor !== undefined) setBlankProductBrandColor(data.blankProductBrandColor);
         if (data.blankProductToggledBlocks !== undefined) setBlankProductToggledBlocks(data.blankProductToggledBlocks);
-        if (data.wizardStep !== undefined) setWizardStep(data.wizardStep);
+        if (data.wizardStep !== undefined) setWizardStep(Number(data.wizardStep) > 4 ? 4 : data.wizardStep);
         if (data.wizardImages !== undefined) setWizardImages(data.wizardImages);
         if (data.wizardDetailedImagesPerColorEnabled !== undefined) setWizardDetailedImagesPerColorEnabled(!!data.wizardDetailedImagesPerColorEnabled);
         if (data.wizardDetailedImagesByPrimary && typeof data.wizardDetailedImagesByPrimary === "object") setWizardDetailedImagesByPrimary(data.wizardDetailedImagesByPrimary);
@@ -6546,7 +6908,7 @@ export default function MerchantDashboard({
                   : "text-white/85 hover:bg-white/10 hover:text-white hover:translate-x-1"
               }`}
             >
-              <Package className={`w-4 h-4 shrink-0 animate-sidebar-package-bob text-current ${merchantSubTab === "orders" ? "scale-110" : ""}`} />
+              <ClipboardList className={`w-4 h-4 shrink-0 animate-sidebar-package-bob text-current ${merchantSubTab === "orders" ? "scale-110" : ""}`} />
               {!isFocusMode && (
                 <span className="flex-1 flex justify-between items-center min-w-0">
                   <span className="truncate pr-1">{merchantLang === "ar" ? "الطلبات" : "Orders"}</span>
@@ -6586,13 +6948,17 @@ export default function MerchantDashboard({
             {/* Real-Time Stock Alerts Navigation Button */}
             <button
               onClick={() => setMerchantSubTab("stock-alerts")}
-              title={isFocusMode ? `${merchantLang === "ar" ? "تنبيهات المخزون" : "Stock Alerts"} (${activeAlertProducts.length})` : undefined}
+              title={
+                isFocusMode
+                  ? `${merchantLang === "ar" ? "تنبيهات المخزون" : "Stock Alerts"} (${totalStoreAttentionCount})`
+                  : undefined
+              }
               className={`flex items-center ${
                 isFocusMode ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5 text-left"
               } rounded-xl text-xs font-bold transition-all duration-300 w-full cursor-pointer group relative ${
                 merchantSubTab === "stock-alerts"
                   ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.35)] border border-white/25 font-black scale-[1.02]"
-                  : activeAlertProducts.length > 0
+                  : totalStoreAttentionCount > 0 || otherStoresWithNotifyAttention.length > 0
                   ? "bg-amber-500/15 border border-amber-400/40 text-white/90 hover:bg-white/10 hover:text-white hover:translate-x-1"
                   : "text-white/85 hover:bg-white/10 hover:text-white hover:translate-x-1"
               }`}
@@ -6601,16 +6967,20 @@ export default function MerchantDashboard({
                 <Bell className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 animate-sidebar-bell-ring text-current ${
                   merchantSubTab === "stock-alerts" ? "scale-110" : ""
                 }`} />
-                {activeAlertProducts.length > 0 && (
+                {(totalStoreAttentionCount > 0 || otherStoresWithNotifyAttention.length > 0) && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                 )}
               </div>
               {!isFocusMode && (
                 <span className="flex-1 flex justify-between items-center min-w-0">
                   <span className="truncate pr-1">{merchantLang === "ar" ? "تنبيهات المخزون" : "Stock Alerts"}</span>
-                  {activeAlertProducts.length > 0 ? (
+                  {totalStoreAttentionCount > 0 ? (
                     <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full shrink-0 bg-rose-500 text-white animate-pulse">
-                      {activeAlertProducts.length}
+                      {totalStoreAttentionCount}
+                    </span>
+                  ) : otherStoresWithNotifyAttention.length > 0 ? (
+                    <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full shrink-0 bg-amber-500 text-slate-950">
+                      {notifyAttentionSummary.totalPendingEntries}
                     </span>
                   ) : (
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -6665,11 +7035,6 @@ export default function MerchantDashboard({
               {!isFocusMode && (
                 <span className="flex-1 flex justify-between items-center min-w-0">
                   <span className="truncate pr-1">{merchantLang === "ar" ? "إضافة منتج" : "Add Product"}</span>
-                  <span className={`text-[9px] font-bold font-mono uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
-                    merchantSubTab === "new-product-blank" ? "bg-white text-slate-900" : "bg-white/20 text-white"
-                  }`}>
-                    {merchantLang === "ar" ? "مسودة" : "5 STEPS"}
-                  </span>
                 </span>
               )}
             </button>
@@ -6817,6 +7182,45 @@ export default function MerchantDashboard({
             >
               <BarChart3 className={`w-4 h-4 shrink-0 transition-transform duration-300 animate-dashboard-float text-current ${merchantSubTab === "analytics" ? "scale-110" : ""}`} />
               {!isFocusMode && <span>{merchantLang === "ar" ? "الإحصائيات والنمو" : "Analytics"}</span>}
+            </button>
+
+            <button
+              id="merchant-subtab-partner-picks"
+              onClick={() => setMerchantSubTab("partner-picks")}
+              title={isFocusMode ? (merchantLang === "ar" ? "شراكات المتاجر" : "Partner Picks") : undefined}
+              className={`flex items-center ${
+                isFocusMode ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5 text-left"
+              } rounded-xl text-xs font-bold transition-all duration-300 w-full cursor-pointer ${
+                merchantSubTab === "partner-picks"
+                  ? "bg-white text-[#1e1b4b] shadow-sm font-black scale-[1.02]"
+                  : "text-white/85 hover:bg-white/10 hover:text-white hover:translate-x-1"
+              }`}
+            >
+              <Sparkles className={`w-4 h-4 shrink-0 transition-transform duration-300 text-current ${merchantSubTab === "partner-picks" ? "scale-110" : ""}`} />
+              {!isFocusMode && (() => {
+                const pendingCount = (partnerPicksContext?.partnerships || []).filter(
+                  (p) =>
+                    p.status === "PENDING_REQUEST" &&
+                    p.initiatedByStoreId !== myStore.id &&
+                    (p.storeAId === myStore.id || p.storeBId === myStore.id)
+                ).length + (partnerPicksContext?.placements || []).filter(
+                  (pl) =>
+                    (pl.lifecycleState === "PROPOSED_AWAITING_HOST_SELECTION" && pl.hostStoreId === myStore.id) ||
+                    (pl.lifecycleState === "HOST_SELECTED_AWAITING_FINAL_APPROVAL" && pl.sourceStoreId === myStore.id)
+                ).length;
+                return (
+                  <span className="flex-1 flex justify-between items-center min-w-0">
+                    <span className="truncate pr-1">
+                      {merchantLang === "ar" ? "شراكات المتاجر" : "Partner Picks"}
+                    </span>
+                    {pendingCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 shrink-0 tabular-nums">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
             </button>
 
             <button
@@ -7328,14 +7732,18 @@ export default function MerchantDashboard({
                 <button
                   type="button"
                   onClick={() => setIsStockNotificationOpen(true)}
-                  className="relative inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-black text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl shadow-2xs cursor-pointer transition-all active:scale-95"
-                  title="Stock Alerts & Real-Time Notifications"
+                  className={`relative inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-black rounded-xl shadow-2xs cursor-pointer transition-all active:scale-95 border ${
+                    totalStoreAttentionCount > 0
+                      ? "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 hover:bg-rose-100"
+                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50"
+                  }`}
+                  title="Stock Alerts & Customer Notify Requests"
                 >
-                  <Bell className={`w-4 h-4 ${activeAlertProducts.length > 0 ? "text-rose-500 animate-bounce" : "text-slate-600"}`} />
+                  <Bell className={`w-4 h-4 ${totalStoreAttentionCount > 0 ? "text-rose-500 animate-bounce" : "text-slate-600 dark:text-slate-300"}`} />
                   <span className="hidden sm:inline font-sans">Stock Alerts</span>
-                  {activeAlertProducts.length > 0 ? (
+                  {totalStoreAttentionCount > 0 ? (
                     <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full font-mono animate-pulse">
-                      {activeAlertProducts.length}
+                      {totalStoreAttentionCount}
                     </span>
                   ) : (
                     <span className="text-[9.5px] font-mono font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded">
@@ -7367,6 +7775,132 @@ export default function MerchantDashboard({
                 </button>
               </div>
             </div>
+
+            {/* CUSTOMER STOCK NOTIFY ATTENTION PANEL (TRIGGERED BY CUSTOMER "NOTIFY ME" REQUESTS) */}
+            {(pendingNotifyForStore.length > 0 || otherStoresWithNotifyAttention.length > 0) && (
+              <div
+                data-testid="merchant-stock-notify-attention"
+                className="rounded-2xl border border-rose-200/90 dark:border-rose-900/60 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xs flex flex-col gap-3.5 text-left animate-fade-in"
+              >
+                {pendingNotifyForStore.length > 0 && (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-rose-500/12 border border-rose-500/25 flex items-center justify-center shrink-0 text-rose-600 dark:text-rose-400">
+                          <Bell className="w-5 h-5 animate-bounce" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider">
+                              Store Attention Needed
+                            </span>
+                            <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                              {myStore.name}: {pendingNotifyForStore.length} Stock Notify Request
+                              {pendingNotifyForStore.length === 1 ? "" : "s"} Waiting
+                            </h4>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                            Shoppers clicked Notify Me on out-of-stock items in your store. Restock below to capture demand.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMerchantSubTab("stock-alerts")}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-xs hover:brightness-110 transition-all cursor-pointer shrink-0 self-start sm:self-center"
+                        style={{ backgroundColor: "var(--yume-theme-header-color, #A64B45)" }}
+                      >
+                        Open Stock Alerts
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {pendingNotifyForStore.slice(0, 4).map((req) => (
+                        <div
+                          key={req.id}
+                          className="p-3 rounded-xl bg-stone-50/90 dark:bg-slate-950/70 border border-stone-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {req.productImage && (
+                              <img
+                                src={req.productImage}
+                                alt={req.productName}
+                                className="w-10 h-10 rounded-lg object-cover border border-stone-200 dark:border-slate-700 shrink-0 bg-white"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {req.productName}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                {req.variantLabel ? `${req.variantLabel} • ` : ""}
+                                <span className="font-semibold text-rose-600 dark:text-rose-400">
+                                  {formatWaitingCountLabel(req.requestCount)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRestockNotifyRequest(req, 10)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                            >
+                              Restock +10
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onResolveStockNotifyRequest?.({ id: req.id, nextStatus: "dismissed" })}
+                              className="px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-300 hover:bg-stone-100 text-[11px] font-semibold transition-colors cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {otherStoresWithNotifyAttention.length > 0 && (
+                  <div
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                      pendingNotifyForStore.length > 0
+                        ? "pt-3 border-t border-stone-200/80 dark:border-slate-800"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                      <div className="text-xs text-slate-700 dark:text-slate-300 truncate">
+                        <span className="font-extrabold text-slate-900 dark:text-white">
+                          Store Stock Attention:
+                        </span>{" "}
+                        {otherStoresWithNotifyAttention
+                          .map((b) => `${b.storeName} (${b.totalRequests} notify request${b.totalRequests === 1 ? "" : "s"})`)
+                          .join(" • ")}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      {otherStoresWithNotifyAttention.slice(0, 2).map((bucket) => (
+                        <button
+                          key={bucket.storeId}
+                          type="button"
+                          onClick={() => {
+                            setMySelectedStoreId(bucket.storeId);
+                            setMerchantSubTab("stock-alerts");
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[11px] font-extrabold transition-all cursor-pointer shadow-2xs"
+                        >
+                          Switch to {bucket.storeName} ({bucket.pendingEntries})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* REAL-TIME LOW STOCK WARNING BANNER */}
             {activeAlertProducts.length > 0 && lowStockAlertsEnabled && (
@@ -7490,7 +8024,7 @@ export default function MerchantDashboard({
                   <span className="text-slate-400 font-medium">• 100% COD</span>
                 </div>
                 <div className="absolute right-3.5 top-3.5 text-slate-400 pointer-events-none opacity-30">
-                  <Package className="w-5 h-5" />
+                  <ClipboardList className="w-5 h-5" />
                 </div>
               </div>
 
@@ -9251,6 +9785,91 @@ export default function MerchantDashboard({
                 </div>
               )}
 
+              {/* Customer Stock Notify Requests Queue for Active Store */}
+              {(pendingNotifyForStore.length > 0 || otherStoresWithNotifyAttention.length > 0) && (
+                <div
+                  data-testid="merchant-stock-notify-requests-panel"
+                  className="p-4 rounded-xl border border-rose-200/90 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 flex flex-col gap-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                        Customer "Notify Me" Stock Demand ({pendingNotifyForStore.length} active for {myStore.name})
+                      </h4>
+                    </div>
+                    {otherStoresWithNotifyAttention.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {otherStoresWithNotifyAttention.map((bucket) => (
+                          <button
+                            key={bucket.storeId}
+                            type="button"
+                            onClick={() => setMySelectedStoreId(bucket.storeId)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            Switch to {bucket.storeName} ({bucket.pendingEntries})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {pendingNotifyForStore.length > 0 && (
+                    <div className="space-y-2">
+                      {pendingNotifyForStore.map((req) => (
+                        <div
+                          key={req.id}
+                          className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {req.productImage && (
+                              <img
+                                src={req.productImage}
+                                alt={req.productName}
+                                className="w-11 h-11 rounded-lg object-cover border border-stone-200 dark:border-slate-700 shrink-0"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {req.productName}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2">
+                                {req.variantLabel && (
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                    Variant: {req.variantLabel}
+                                  </span>
+                                )}
+                                <span className="font-bold text-rose-600 dark:text-rose-400">
+                                  {formatWaitingCountLabel(req.requestCount)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRestockNotifyRequest(req, 10)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              Restock +10 & Notify
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onResolveStockNotifyRequest?.({ id: req.id, nextStatus: "resolved" })}
+                              className="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              Mark Resolved
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Threshold & Alert Configurator Bar */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-stone-50/70 dark:bg-slate-950/60 border border-stone-200/80 dark:border-slate-800">
                 <div className="flex flex-col gap-1.5">
@@ -9423,7 +10042,7 @@ export default function MerchantDashboard({
           >
 
 
-            {/* FIRST CADRE: Wide 5-Step Creation Bar with Transparent Background */}
+            {/* FIRST CADRE: Wide 4-Step Creation Bar with Transparent Background */}
             <div 
               onMouseEnter={() => setIsMouseNearStepBoxes(true)}
               className={`w-full mx-auto bg-transparent border-0 shadow-none p-0 flex flex-col gap-3 transition-all ${
@@ -9431,10 +10050,10 @@ export default function MerchantDashboard({
               }`}
             >
 
-              {/* STEP CREATION TABS (Dynamic 5 or 6 Steps when Sizing & Fit Information is Active) */}
+              {/* STEP CREATION TABS (Dynamic 4 or 5 Steps when Sizing & Fit Information is Active) */}
               <div
-                className={`grid grid-cols-2 sm:grid-cols-3 ${
-                  isEligibleForSizingFit ? "lg:grid-cols-6" : "lg:grid-cols-5"
+                className={`grid grid-cols-2 sm:grid-cols-2 ${
+                  isEligibleForSizingFit ? "lg:grid-cols-5" : "lg:grid-cols-4"
                 } gap-3 sm:gap-3.5 p-0 bg-transparent rounded-2xl border-0 overflow-visible relative z-20 w-full`}
                 role="tablist"
                 aria-label="Product creation steps"
@@ -9445,15 +10064,13 @@ export default function MerchantDashboard({
                       { step: 2, label: "Images & links", desc: "Media files", icon: Image },
                       { step: 3, label: "Category & specs", desc: "Attributes checklist", icon: Layers },
                       { step: 3.5, label: "Sizing & Fit Info", desc: "Find Your Fit chart", icon: Scissors },
-                      { step: 4, label: "Prices & shipping", desc: "Rates & options", icon: Truck },
-                      { step: 5, label: "Upload landing", desc: "Review & publish", icon: CheckCircle },
+                      { step: 4, label: "Prices & shipping", desc: "Rates, options & publish", icon: Truck },
                     ]
                   : [
                       { step: 1, label: "Product identity", desc: "Name, story & features", icon: FileText },
                       { step: 2, label: "Images & links", desc: "Media files", icon: Image },
                       { step: 3, label: "Category & specs", desc: "Attributes checklist", icon: Layers },
-                      { step: 4, label: "Prices & shipping", desc: "Rates & options", icon: Truck },
-                      { step: 5, label: "Upload landing", desc: "Review & publish", icon: CheckCircle },
+                      { step: 4, label: "Prices & shipping", desc: "Rates, options & publish", icon: Truck },
                     ]
                 ).map((s, stepIdx) => {
                   const isActive = wizardStep === s.step;
@@ -11199,6 +11816,287 @@ export default function MerchantDashboard({
                           </div>
                         </div>
                       )}
+                      {/* Optional Ad Landing Page, Tracking Pixels & Accent Color */}
+                      <details className="group rounded-xl border border-stone-200/90 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-950/60 overflow-hidden mt-1">
+                        <summary className="list-none flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none hover:bg-stone-100/70 dark:hover:bg-slate-900/60 transition-colors">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Upload className="w-4 h-4 text-stone-500 dark:text-slate-400 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-stone-900 dark:text-white block">
+                                Ad Landing Page, Tracking Pixels &amp; Accent Color
+                              </span>
+                              <span className="text-[11px] text-stone-500 dark:text-slate-400 block truncate">
+                                Optional standalone COD landing generator, Facebook/TikTok Pixels, and storefront accent
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-semibold text-stone-500 dark:text-slate-400 shrink-0 group-open:hidden">
+                            Configure
+                          </span>
+                          <span className="text-[11px] font-semibold text-stone-500 dark:text-slate-400 shrink-0 hidden group-open:inline">
+                            Collapse
+                          </span>
+                        </summary>
+
+                        <div className="p-4 pt-3 border-t border-stone-200/80 dark:border-slate-800 space-y-5 bg-white dark:bg-slate-900">
+                          {/* Landing Page Content upload & Automated Ad Landing Page Generator */}
+                          <div className="space-y-3 group/spec">
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-xs font-semibold text-stone-800 dark:text-slate-200 block">
+                                Storefront landing page file (.html / .json) &amp; Automated Ad Landing Page Generator
+                              </label>
+                              <HintTooltip 
+                                title="Landing Page Template"
+                                text="Upload custom HTML or JSON landing page layouts, or auto-generate a standalone high-converting COD Ad Landing Page with Pixel support." 
+                                currentSlideColor={currentSlideColor} 
+                                showHints={wizardShowHints} 
+                              />
+                            </div>
+
+                            {/* Ad Pixels (Facebook Pixel & TikTok Pixel) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10.5px] font-bold text-stone-600 dark:text-slate-400 block mb-1">
+                                  Facebook Pixel ID (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. 129485739201948"
+                                  value={wizardFacebookPixelId}
+                                  onChange={(e) => setWizardFacebookPixelId(e.target.value)}
+                                  className="w-full text-xs p-2.5 rounded-xl border border-stone-200/90 dark:border-slate-700 bg-stone-50/70 dark:bg-slate-950 font-mono text-stone-900 dark:text-white outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10.5px] font-bold text-stone-600 dark:text-slate-400 block mb-1">
+                                  TikTok Pixel ID (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. C9K8L7M6N5P4Q3"
+                                  value={wizardTiktokPixelId}
+                                  onChange={(e) => setWizardTiktokPixelId(e.target.value)}
+                                  className="w-full text-xs p-2.5 rounded-xl border border-stone-200/90 dark:border-slate-700 bg-stone-50/70 dark:bg-slate-950 font-mono text-stone-900 dark:text-white outline-none"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="border border-dashed border-stone-300 dark:border-slate-700 bg-stone-50/70 dark:bg-slate-950 rounded-xl p-5 text-center transition-colors flex flex-col items-center justify-center gap-2">
+                              <Upload className="w-5 h-5 text-stone-500 dark:text-slate-400" />
+                              <div className="text-xs font-bold text-stone-900 dark:text-white">
+                                {wizardLandingPageFileName ? `File selected: ${wizardLandingPageFileName}` : "Select custom-landing-page.html"}
+                              </div>
+                              <div className="text-[11px] text-stone-500 dark:text-slate-400">
+                                {wizardLandingPageContent ? "Landing page HTML bound to Steps 1–4 state and ready for COD ad traffic." : "Or generate a high-converting COD Ad Landing Page below"}
+                              </div>
+                              
+                              <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const generatedHtml = generateStandaloneAdLandingPageHtml({
+                                      title: blankProductName || "Premium Boutique Product",
+                                      sku: blankProductSku || "SKU-001",
+                                      category: blankProductCategory || "Crafts",
+                                      description: wizardProductStory || "",
+                                      technicalDescription: blankProductDescription || "",
+                                      seoKeywords: wizardSeoKeywords || "",
+                                      currency: wizardCurrency,
+                                      basePrice: Number(blankProductPrice || 3500),
+                                      discountEnabled: wizardDiscountEnabled,
+                                      discountPercent: wizardDiscountPercent,
+                                      carrier: wizardDeliveryCompany || "Yalidine Express",
+                                      brandColor: blankProductBrandColor || currentSlideColor,
+                                      images: wizardImages.filter(Boolean),
+                                      videoLinks: wizardLinks.filter(Boolean),
+                                      specs: wizardProductSpecs || [],
+                                      variants: wizardVariantsEnabled ? wizardProductVariants : [],
+                                      colorSwatches: wizardColorSwatches,
+                                      sizes: wizardProductSizes || [],
+                                      sizePrices: wizardSizePrices,
+                                      storyEnabled: wizardAdvancedStoryEnabled,
+                                      storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
+                                      facebookPixelId: wizardFacebookPixelId,
+                                      tiktokPixelId: wizardTiktokPixelId,
+                                    });
+                                    const slug = (blankProductName || "product")
+                                      .toLowerCase()
+                                      .replace(/[^a-z0-9]+/g, "_")
+                                      .replace(/^_|_$/g, "");
+                                    setWizardLandingPageFileName(`${slug || "product"}_cod_ad_landing.html`);
+                                    setWizardLandingPageContent(generatedHtml);
+                                    setMerchantFeedbackMessage("Automated COD Ad Landing Page generated from product details!");
+                                  }}
+                                  className="text-xs bg-stone-900 hover:bg-stone-800 text-white font-bold px-3.5 py-2 rounded-xl border border-stone-900 cursor-pointer transition-colors"
+                                >
+                                  Generate Automated COD Ad Landing Page
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const generatedHtml = generateStandaloneAdLandingPageHtml({
+                                      title: blankProductName || "Premium Boutique Product",
+                                      sku: blankProductSku || "SKU-001",
+                                      category: blankProductCategory || "Crafts",
+                                      description: wizardProductStory || "",
+                                      technicalDescription: blankProductDescription || "",
+                                      seoKeywords: wizardSeoKeywords || "",
+                                      currency: wizardCurrency,
+                                      basePrice: Number(blankProductPrice || 3500),
+                                      discountEnabled: wizardDiscountEnabled,
+                                      discountPercent: wizardDiscountPercent,
+                                      carrier: wizardDeliveryCompany || "Yalidine Express",
+                                      brandColor: blankProductBrandColor || currentSlideColor,
+                                      images: wizardImages.filter(Boolean),
+                                      videoLinks: wizardLinks.filter(Boolean),
+                                      specs: wizardProductSpecs || [],
+                                      variants: wizardVariantsEnabled ? wizardProductVariants : [],
+                                      colorSwatches: wizardColorSwatches,
+                                      sizes: wizardProductSizes || [],
+                                      sizePrices: wizardSizePrices,
+                                      storyEnabled: wizardAdvancedStoryEnabled,
+                                      storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
+                                      facebookPixelId: wizardFacebookPixelId,
+                                      tiktokPixelId: wizardTiktokPixelId,
+                                    });
+                                    setWizardLandingPageContent(generatedHtml);
+                                    const blob = new Blob([generatedHtml], { type: "text/html;charset=utf-8" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = wizardLandingPageFileName || "cod_ad_landing_page.html";
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                    setMerchantFeedbackMessage("Standalone COD Ad Landing Page (.html) downloaded!");
+                                  }}
+                                  className="text-xs bg-white dark:bg-slate-900 hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-800 dark:text-slate-200 font-semibold px-3.5 py-2 rounded-xl border border-stone-200/90 dark:border-slate-700 cursor-pointer transition-colors"
+                                >
+                                  Download Ad Landing HTML
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Brand Palette Accent Customizer */}
+                          <div className="space-y-2.5 group/spec">
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-xs font-semibold text-stone-800 dark:text-slate-200 block">
+                                Primary accent brand color
+                              </label>
+                              <HintTooltip 
+                                title="Accent Brand Color"
+                                text="Select a signature color for your storefront buttons, badges, and high-impact visual highlights." 
+                                currentSlideColor={currentSlideColor} 
+                                showHints={wizardShowHints} 
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { name: "Saharan Indigo", hex: "#6366f1", bg: "bg-indigo-500" },
+                                { name: "Atlas Emerald", hex: "#10b981", bg: "bg-emerald-500" },
+                                { name: "Coral Oasis", hex: "#f97316", bg: "bg-orange-500" },
+                                { name: "Algerian Poppy", hex: "#ef4444", bg: "bg-rose-500" },
+                                { name: "Royal Purple", hex: "#8b5cf6", bg: "bg-purple-500" },
+                                { name: "Slate Minimalist", hex: "#475569", bg: "bg-slate-600" },
+                              ].map((c) => (
+                                <button
+                                  key={c.hex}
+                                  type="button"
+                                  onClick={() => {
+                                    setBlankProductBrandColor(c.hex);
+                                    setMerchantFeedbackMessage(`Accent Theme changed to "${c.name}"!`);
+                                  }}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                                    blankProductBrandColor === c.hex
+                                      ? "bg-stone-900 border-stone-900 text-white dark:bg-white dark:text-slate-900 dark:border-white"
+                                      : "bg-stone-50 dark:bg-slate-900/40 border-stone-200/90 dark:border-slate-800 text-stone-700 dark:text-slate-300 hover:bg-stone-100"
+                                  }`}
+                                >
+                                  <span className={`w-3 h-3 rounded-full ${c.bg} shrink-0 border border-white/20`} />
+                                  <span>{c.name}</span>
+                                  {blankProductBrandColor === c.hex && (
+                                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </details>
+                    </div>
+
+                    {/* Product Publication Bar directly on Step 4 */}
+                    <div className="pt-4 border-t border-stone-200/80 dark:border-slate-800 flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={handleDirectPublishWizardProduct}
+                        className="flex-1 hover:brightness-110 text-white border border-white/20 font-bold text-xs py-3.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer select-none"
+                        style={{
+                          backgroundColor: "var(--yume-theme-header-color, " + (darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")) + ")"
+                        }}
+                      >
+                        <CheckCircle className="w-4 h-4 text-emerald-300 stroke-[2.5]" />
+                        {editingProduct ? "Save Modified Product Changes" : "Publish Product to Store Catalog"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let firstFailedStep = -1;
+                          for (let st = 1; st <= 4; st++) {
+                            if (!validateWizardStep(st)) {
+                              firstFailedStep = st;
+                              break;
+                            }
+                          }
+                          if (firstFailedStep !== -1) {
+                            setWizardStep(firstFailedStep);
+                            setWizardShowErrors(true);
+                            return;
+                          }
+
+                          const generatedHtml = generateStandaloneAdLandingPageHtml({
+                            title: blankProductName || "Premium Boutique Product",
+                            sku: blankProductSku || "SKU-001",
+                            category: blankProductCategory || "Crafts",
+                            description: wizardProductStory || "",
+                            technicalDescription: blankProductDescription || "",
+                            seoKeywords: wizardSeoKeywords || "",
+                            currency: wizardCurrency,
+                            basePrice: Number(blankProductPrice || 3500),
+                            discountEnabled: wizardDiscountEnabled,
+                            discountPercent: wizardDiscountPercent,
+                            carrier: wizardDeliveryCompany || "Yalidine Express",
+                            brandColor: blankProductBrandColor || currentSlideColor,
+                            images: wizardImages.filter(Boolean),
+                            videoLinks: wizardLinks.filter(Boolean),
+                            specs: wizardProductSpecs || [],
+                            variants: wizardVariantsEnabled ? wizardProductVariants : [],
+                            colorSwatches: wizardColorSwatches,
+                            sizes: wizardProductSizes || [],
+                            sizePrices: wizardSizePrices,
+                            storyEnabled: wizardAdvancedStoryEnabled,
+                            storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
+                            facebookPixelId: wizardFacebookPixelId,
+                            tiktokPixelId: wizardTiktokPixelId,
+                          });
+                          const slug = (blankProductName || "product")
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "_")
+                            .replace(/^_|_$/g, "");
+                          setWizardLandingPageFileName(`${slug || "product"}_cod_ad_landing.html`);
+                          setWizardLandingPageContent(generatedHtml);
+                          setShowWizardLivePreview(true);
+                          setMerchantFeedbackMessage("Automated COD Ad Landing Page generated & synced with Live Preview!");
+                        }}
+                        className="flex-1 bg-stone-900 hover:bg-stone-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white border border-stone-700 font-bold text-xs py-3.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer select-none"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>Generate &amp; Launch Ad Landing Page (COD)</span>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -12093,820 +12991,7 @@ export default function MerchantDashboard({
                   </div>
                 )}
 
-                {/* SECTION 6 (Step 5): UPLOAD LANDING PAGE & PUBLISH */}
-                {wizardStep === 5 && (
-                  <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-xl border border-stone-200/80 dark:border-slate-800 text-left flex flex-col gap-5 animate-fade-in">
-                    <div className="flex items-center justify-between pb-4 border-b border-stone-200/80 dark:border-slate-800">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-1.5 h-5 rounded-full shrink-0"
-                          style={{
-                            backgroundColor: "var(--yume-theme-header-color, " + (darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")) + ")"
-                          }}
-                        />
-                        <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight font-sans">
-                          Step 5: Upload landing
-                        </h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setWizardShowHints(!wizardShowHints)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-stone-200 dark:border-slate-700 bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs select-none"
-                        title="Toggle help hints visibility"
-                      >
-                        <HelpCircle className="w-3.5 h-3.5 text-stone-500 dark:text-slate-400" />
-                        <span>Hints: {wizardShowHints ? "On" : "Off"}</span>
-                        <span className={`w-2 h-2 rounded-full ${wizardShowHints ? "bg-stone-600 dark:bg-slate-300" : "bg-stone-300 dark:bg-slate-600"}`} />
-                      </button>
-                    </div>
-
-                    {/* Step 5 Advice Callout */}
-                    <div
-                      className="flex items-start gap-2.5 p-3.5 rounded-xl border transition-all"
-                      style={{
-                        backgroundColor: `color-mix(in srgb, var(--yume-theme-header-color, ${darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")}) 6%, transparent)`,
-                        borderColor: `color-mix(in srgb, var(--yume-theme-header-color, ${darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")}) 18%, transparent)`
-                      }}
-                    >
-                      <Info
-                        className="w-4 h-4 shrink-0 mt-0.5"
-                        style={{ color: "var(--yume-theme-header-color, " + (darkMode ? "#38bdf8" : (currentSlideColor || "#0b2447")) + ")" }}
-                      />
-                      <p
-                        className="text-xs leading-relaxed font-semibold flex-1"
-                        style={{ color: "var(--yume-theme-header-color, " + (darkMode ? "#cbd5e1" : (currentSlideColor || "#0b2447")) + ")" }}
-                      >
-                        <strong
-                          className="font-black uppercase mr-1.5"
-                          style={{ color: "var(--yume-theme-header-color, " + (darkMode ? "#38bdf8" : (currentSlideColor || "#0b2447")) + ")" }}
-                        >
-                          Advice:
-                        </strong>
-                        {activeStepAdvices[5]}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => cycleStepAdvice(5)}
-                        className="text-stone-400 hover:text-stone-700 dark:hover:text-white p-1 rounded-md transition-all cursor-pointer shrink-0"
-                        title="Show another advice"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    {/* Landing Page Content upload & Automated Ad Landing Page Generator */}
-                    <div className="space-y-3 group/spec">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-semibold text-stone-800 dark:text-slate-200 block">
-                          Storefront landing page file (.html / .json) &amp; Automated Ad Landing Page Generator
-                        </label>
-                        <HintTooltip 
-                          title="Landing Page Template"
-                          text="Upload custom HTML or JSON landing page layouts, or auto-generate a standalone high-converting COD Ad Landing Page with Pixel support." 
-                          currentSlideColor={currentSlideColor} 
-                          showHints={wizardShowHints} 
-                        />
-                      </div>
-
-                      {/* Ad Pixels (Facebook Pixel & TikTok Pixel) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[10.5px] font-bold text-stone-600 dark:text-slate-400 block mb-1">
-                            Facebook Pixel ID (Optional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. 129485739201948"
-                            value={wizardFacebookPixelId}
-                            onChange={(e) => setWizardFacebookPixelId(e.target.value)}
-                            className="w-full text-xs p-2.5 rounded-xl border border-stone-200/90 dark:border-slate-700 bg-stone-50/70 dark:bg-slate-950 font-mono text-stone-900 dark:text-white outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10.5px] font-bold text-stone-600 dark:text-slate-400 block mb-1">
-                            TikTok Pixel ID (Optional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. C9K8L7M6N5P4Q3"
-                            value={wizardTiktokPixelId}
-                            onChange={(e) => setWizardTiktokPixelId(e.target.value)}
-                            className="w-full text-xs p-2.5 rounded-xl border border-stone-200/90 dark:border-slate-700 bg-stone-50/70 dark:bg-slate-950 font-mono text-stone-900 dark:text-white outline-none"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="border border-dashed border-stone-300 dark:border-slate-700 bg-stone-50/70 dark:bg-slate-950 rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2.5">
-                        <Upload className="w-6 h-6 text-stone-500 dark:text-slate-400" />
-                        <div className="text-xs font-bold text-stone-900 dark:text-white">
-                          {wizardLandingPageFileName ? `File selected: ${wizardLandingPageFileName}` : "Select custom-landing-page.html"}
-                        </div>
-                        <div className="text-[11px] text-stone-500 dark:text-slate-400">
-                          {wizardLandingPageContent ? "Landing page HTML bound to Steps 1–4 state and ready for COD ad traffic." : "Or generate a high-converting COD Ad Landing Page below"}
-                        </div>
-                        
-                        <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const generatedHtml = generateStandaloneAdLandingPageHtml({
-                                title: blankProductName || "Premium Boutique Product",
-                                sku: blankProductSku || "SKU-001",
-                                category: blankProductCategory || "Crafts",
-                                description: wizardProductStory || "",
-                                technicalDescription: blankProductDescription || "",
-                                seoKeywords: wizardSeoKeywords || "",
-                                currency: wizardCurrency,
-                                basePrice: Number(blankProductPrice || 3500),
-                                discountEnabled: wizardDiscountEnabled,
-                                discountPercent: wizardDiscountPercent,
-                                carrier: wizardDeliveryCompany || "Yalidine Express",
-                                brandColor: blankProductBrandColor || currentSlideColor,
-                                images: wizardImages.filter(Boolean),
-                                videoLinks: wizardLinks.filter(Boolean),
-                                specs: wizardProductSpecs || [],
-                                variants: wizardVariantsEnabled ? wizardProductVariants : [],
-                                colorSwatches: wizardColorSwatches,
-                                sizes: wizardProductSizes || [],
-                                sizePrices: wizardSizePrices,
-                                storyEnabled: wizardAdvancedStoryEnabled,
-                                storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
-                                facebookPixelId: wizardFacebookPixelId,
-                                tiktokPixelId: wizardTiktokPixelId,
-                              });
-                              const slug = (blankProductName || "product")
-                                .toLowerCase()
-                                .replace(/[^a-z0-9]+/g, "_")
-                                .replace(/^_|_$/g, "");
-                              setWizardLandingPageFileName(`${slug || "product"}_cod_ad_landing.html`);
-                              setWizardLandingPageContent(generatedHtml);
-                              setMerchantFeedbackMessage("Automated COD Ad Landing Page generated from Steps 1–4 data!");
-                            }}
-                            className="text-xs bg-stone-900 hover:bg-stone-800 text-white font-bold px-3.5 py-2 rounded-xl border border-stone-900 cursor-pointer transition-colors"
-                          >
-                            Generate Automated COD Ad Landing Page
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const generatedHtml = generateStandaloneAdLandingPageHtml({
-                                title: blankProductName || "Premium Boutique Product",
-                                sku: blankProductSku || "SKU-001",
-                                category: blankProductCategory || "Crafts",
-                                description: wizardProductStory || "",
-                                technicalDescription: blankProductDescription || "",
-                                seoKeywords: wizardSeoKeywords || "",
-                                currency: wizardCurrency,
-                                basePrice: Number(blankProductPrice || 3500),
-                                discountEnabled: wizardDiscountEnabled,
-                                discountPercent: wizardDiscountPercent,
-                                carrier: wizardDeliveryCompany || "Yalidine Express",
-                                brandColor: blankProductBrandColor || currentSlideColor,
-                                images: wizardImages.filter(Boolean),
-                                videoLinks: wizardLinks.filter(Boolean),
-                                specs: wizardProductSpecs || [],
-                                variants: wizardVariantsEnabled ? wizardProductVariants : [],
-                                colorSwatches: wizardColorSwatches,
-                                sizes: wizardProductSizes || [],
-                                sizePrices: wizardSizePrices,
-                                storyEnabled: wizardAdvancedStoryEnabled,
-                                storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
-                                facebookPixelId: wizardFacebookPixelId,
-                                tiktokPixelId: wizardTiktokPixelId,
-                              });
-                              setWizardLandingPageContent(generatedHtml);
-                              const blob = new Blob([generatedHtml], { type: "text/html;charset=utf-8" });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = wizardLandingPageFileName || "cod_ad_landing_page.html";
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              URL.revokeObjectURL(url);
-                              setMerchantFeedbackMessage("Standalone COD Ad Landing Page (.html) downloaded!");
-                            }}
-                            className="text-xs bg-white dark:bg-slate-900 hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-800 dark:text-slate-200 font-semibold px-3.5 py-2 rounded-xl border border-stone-200/90 dark:border-slate-700 cursor-pointer transition-colors"
-                          >
-                            Download Ad Landing HTML
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Embedded Cash on Delivery (COD) Direct Order Form (Step 5 Live Interactive Checkout) */}
-                    {(() => {
-                      const activeResolution = resolveActiveVariantSelection({
-                        basePrice: Number(blankProductPrice || 3500),
-                        selectedOptions: {
-                          ...previewSelectedOptions,
-                          ...(previewSelectedColor ? { Color: previewSelectedColor } : {}),
-                          ...(previewSelectedSize ? { Size: previewSelectedSize } : {}),
-                        },
-                        colorSwatches: wizardColorSwatches,
-                        sizePrices: wizardSizePrices,
-                        variants: wizardVariantsEnabled ? wizardProductVariants : [],
-                        galleryImages: wizardImages.filter(Boolean),
-                      });
-                      const codOrderCalc = calculateCodOrderSummary({
-                        variantPrice: activeResolution.effectivePrice,
-                        discountEnabled: wizardDiscountEnabled,
-                        discountPercent: wizardDiscountPercent,
-                        quantity: codQuantity,
-                        carrier: wizardDeliveryCompany,
-                        wilaya: codBuyerWilaya,
-                        deliveryType: codDeliveryType,
-                        currency: wizardCurrency,
-                      });
-                      const currSym = getCurrencySymbol(wizardCurrency);
-
-                      return (
-                        <div className="p-4 sm:p-5 rounded-xl border border-stone-200/90 dark:border-slate-800 bg-stone-50/70 dark:bg-slate-950 space-y-4">
-                          <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-2.5">
-                            <div>
-                              <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white">
-                                Embedded Cash on Delivery (COD) Direct Order Form
-                              </h4>
-                              <p className="text-[11px] text-stone-500 dark:text-slate-400">
-                                Dynamically bound to Steps 1–4 variants, gallery images, currency ({wizardCurrency}), and {wizardDeliveryCompany} rates.
-                              </p>
-                            </div>
-                            <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              COD Ready
-                            </span>
-                          </div>
-
-                          {/* Interactive Variant Picker inside COD Form */}
-                          {wizardVariantsEnabled && (
-                            <div className="space-y-2.5">
-                              {wizardVariantAttrs && sortVariantAttributes(wizardVariantAttrs.filter(a => a.tags && a.tags.length > 0)).map((attr, aIdx) => {
-                                const isColor = ["color", "couleur", "لون"].some(k => attr.name.toLowerCase().includes(k));
-                                const isSize = ["size", "taille", "مقاس"].some(k => attr.name.toLowerCase().includes(k));
-                                const currentVal = isColor
-                                  ? (previewSelectedColor || attr.tags[0])
-                                  : isSize
-                                  ? (previewSelectedSize || attr.tags[0])
-                                  : (previewSelectedOptions[attr.name] || attr.tags[0]);
-
-                                return (
-                                  <div key={`cod-attr-${aIdx}`} className="space-y-1">
-                                    <label className="text-[11px] font-bold text-stone-700 dark:text-slate-300 block">
-                                      Select {attr.name}: <span className="font-mono text-stone-900 dark:text-white">{currentVal}</span>
-                                    </label>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {attr.tags.map((tag) => {
-                                        const active = currentVal === tag;
-                                        return (
-                                          <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => {
-                                              if (isColor) {
-                                                setPreviewSelectedColor(tag);
-                                                const sw = wizardColorSwatches.find(s => s.name.toLowerCase() === tag.toLowerCase());
-                                                const swImg = sw?.imageUrl || sw?.images?.[0];
-                                                if (swImg) setPreviewCustomImage(swImg);
-                                              } else if (isSize) {
-                                                setPreviewSelectedSize(tag);
-                                              }
-                                              setPreviewSelectedOptions(prev => ({ ...prev, [attr.name]: tag }));
-                                            }}
-                                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                                              active
-                                                ? "bg-stone-900 text-white border-stone-900 dark:bg-white dark:text-slate-900"
-                                                : "bg-white dark:bg-slate-900 text-stone-700 dark:text-slate-300 border-stone-200 dark:border-slate-700"
-                                            }`}
-                                          >
-                                            {tag}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {/* Buyer Info Fields */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-[11px] font-bold text-stone-700 dark:text-slate-300 block mb-1">
-                                Full Name *
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Buyer Full Name"
-                                value={codBuyerName}
-                                onChange={(e) => {
-                                  setCodBuyerName(e.target.value);
-                                  setCodOrderError("");
-                                }}
-                                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-stone-900 dark:text-white outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[11px] font-bold text-stone-700 dark:text-slate-300 block mb-1">
-                                Phone Number *
-                              </label>
-                              <input
-                                type="tel"
-                                placeholder="0550 12 34 56"
-                                value={codBuyerPhone}
-                                onChange={(e) => {
-                                  setCodBuyerPhone(e.target.value);
-                                  setCodOrderError("");
-                                }}
-                                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-stone-900 dark:text-white outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[11px] font-bold text-stone-700 dark:text-slate-300 block mb-1">
-                                State / Wilaya / City *
-                              </label>
-                              <select
-                                value={codBuyerWilaya}
-                                onChange={(e) => {
-                                  setCodBuyerWilaya(e.target.value);
-                                  setWizardShippingWilaya(e.target.value);
-                                  setCodOrderError("");
-                                }}
-                                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-stone-900 dark:text-white outline-none cursor-pointer"
-                              >
-                                {ALGERIA_WILAYAS.map((w) => (
-                                  <option key={w.code} value={w.name}>{w.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[11px] font-bold text-stone-700 dark:text-slate-300 block mb-1">
-                                Commune / Detailed Address *
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Commune, street, building..."
-                                value={codBuyerCommune}
-                                onChange={(e) => {
-                                  setCodBuyerCommune(e.target.value);
-                                  setCodOrderError("");
-                                }}
-                                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-stone-900 dark:text-white outline-none"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Delivery Method Selector: Home Delivery vs Office / Stop Desk Delivery */}
-                          <div className="space-y-1.5">
-                            <label className="text-[11px] font-bold text-stone-700 dark:text-slate-300 block">
-                              Delivery Method ({wizardDeliveryCompany})
-                            </label>
-                            <div className="grid grid-cols-2 gap-2.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCodDeliveryType("home");
-                                  setWizardDeliveryType("home");
-                                }}
-                                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
-                                  codDeliveryType === "home"
-                                    ? "bg-stone-900 text-white border-stone-900 dark:bg-white dark:text-slate-900"
-                                    : "bg-white dark:bg-slate-900 text-stone-700 dark:text-slate-300 border-stone-200 dark:border-slate-700"
-                                }`}
-                              >
-                                <span>Home Delivery</span>
-                                <span className="font-mono text-[11px]">
-                                  {calculateDynamicShippingFee({
-                                    carrier: wizardDeliveryCompany,
-                                    wilaya: codBuyerWilaya,
-                                    deliveryType: "home",
-                                    currency: wizardCurrency,
-                                  }).fee.toLocaleString()} {currSym}
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCodDeliveryType("stop_desk");
-                                  setWizardDeliveryType("stop_desk");
-                                }}
-                                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
-                                  codDeliveryType === "stop_desk"
-                                    ? "bg-stone-900 text-white border-stone-900 dark:bg-white dark:text-slate-900"
-                                    : "bg-white dark:bg-slate-900 text-stone-700 dark:text-slate-300 border-stone-200 dark:border-slate-700"
-                                }`}
-                              >
-                                <span>Office / Stop Desk</span>
-                                <span className="font-mono text-[11px]">
-                                  {calculateDynamicShippingFee({
-                                    carrier: wizardDeliveryCompany,
-                                    wilaya: codBuyerWilaya,
-                                    deliveryType: "stop_desk",
-                                    currency: wizardCurrency,
-                                  }).fee.toLocaleString()} {currSym}
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Real-Time COD Order Summary */}
-                          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-stone-200/90 dark:border-slate-800 space-y-1.5 text-xs">
-                            <div className="flex justify-between items-center text-stone-600 dark:text-slate-400">
-                              <span>Selected Variant Price:</span>
-                              <span className="font-mono font-bold text-stone-900 dark:text-white">
-                                {codOrderCalc.unitFinalPrice.toLocaleString()} {currSym} ({wizardCurrency})
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center text-stone-600 dark:text-slate-400">
-                              <span>Dynamic Shipping Fee ({wizardDeliveryCompany} • {codBuyerWilaya} • {codDeliveryType === "home" ? "Home" : "Stop Desk"}):</span>
-                              <span className="font-mono font-bold text-stone-900 dark:text-white">
-                                {codOrderCalc.shippingFee.toLocaleString()} {currSym} ({wizardCurrency})
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-stone-200 dark:border-slate-800 text-sm font-black text-stone-900 dark:text-white">
-                              <span>Total Final Price (COD):</span>
-                              <span className="font-mono text-emerald-700 dark:text-emerald-400">
-                                {codOrderCalc.totalFinalPrice.toLocaleString()} {currSym} ({wizardCurrency})
-                              </span>
-                            </div>
-                          </div>
-
-                          {codOrderError && (
-                            <p className="text-[11px] font-bold text-rose-600 font-mono">{codOrderError}</p>
-                          )}
-                          {codOrderSubmitted && (
-                            <p className="text-[11px] font-bold text-emerald-700 font-mono">
-                              ✓ Direct COD test order verified! Total: {codOrderCalc.totalFinalPrice.toLocaleString()} {currSym}
-                            </p>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const check = validateCodOrderForm({
-                                fullName: codBuyerName,
-                                phone: codBuyerPhone,
-                                wilaya: codBuyerWilaya,
-                                communeAddress: codBuyerCommune,
-                                deliveryType: codDeliveryType,
-                              });
-                              if (!check.valid) {
-                                setCodOrderError(check.error || "Please fill all required COD fields.");
-                                setCodOrderSubmitted(false);
-                                return;
-                              }
-                              setCodOrderError("");
-                              setCodOrderSubmitted(true);
-                              if (setMerchantFeedbackMessage) {
-                                setMerchantFeedbackMessage(`COD Direct Order simulated: ${codOrderCalc.totalFinalPrice.toLocaleString()} ${currSym}`);
-                              }
-                            }}
-                            className="w-full py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-white dark:text-slate-900 text-white font-bold text-xs cursor-pointer transition-colors"
-                          >
-                            Test Direct COD Order Submission ({codOrderCalc.totalFinalPrice.toLocaleString()} {currSym})
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Brand Palette Accent Customizer */}
-                    <div className="space-y-3 group/spec">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-semibold text-stone-800 dark:text-slate-200 block">
-                          Primary accent brand color
-                        </label>
-                        <HintTooltip 
-                          title="Accent Brand Color"
-                          text="Select a signature color for your storefront buttons, badges, and high-impact visual highlights." 
-                          currentSlideColor={currentSlideColor} 
-                          showHints={wizardShowHints} 
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { name: "Saharan Indigo", hex: "#6366f1", bg: "bg-indigo-500" },
-                          { name: "Atlas Emerald", hex: "#10b981", bg: "bg-emerald-500" },
-                          { name: "Coral Oasis", hex: "#f97316", bg: "bg-orange-500" },
-                          { name: "Algerian Poppy", hex: "#ef4444", bg: "bg-rose-500" },
-                          { name: "Royal Purple", hex: "#8b5cf6", bg: "bg-purple-500" },
-                          { name: "Slate Minimalist", hex: "#475569", bg: "bg-slate-600" },
-                        ].map((c) => (
-                          <button
-                            key={c.hex}
-                            type="button"
-                            onClick={() => {
-                              setBlankProductBrandColor(c.hex);
-                              setMerchantFeedbackMessage(`Accent Theme changed to "${c.name}"!`);
-                            }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
-                              blankProductBrandColor === c.hex
-                                ? "bg-stone-900 border-stone-900 text-white dark:bg-white dark:text-slate-900 dark:border-white"
-                                : "bg-stone-50 dark:bg-slate-900/40 border-stone-200/90 dark:border-slate-800 text-stone-700 dark:text-slate-300 hover:bg-stone-100"
-                            }`}
-                          >
-                            <span className={`w-3 h-3 rounded-full ${c.bg} shrink-0 border border-white/20`} />
-                            <span>{c.name}</span>
-                            {blankProductBrandColor === c.hex && (
-                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Dual Publishing Workflow: 1. Direct Product Publish & 2. Publish with Automated Ad Landing Page */}
-                    <div className="pt-4 border-t border-stone-200/80 dark:border-slate-800 flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          let firstFailedStep = -1;
-                          for (let st = 1; st <= 4; st++) {
-                            if (!validateWizardStep(st)) {
-                              firstFailedStep = st;
-                              break;
-                            }
-                          }
-                          if (firstFailedStep !== -1) {
-                            setWizardStep(firstFailedStep);
-                            setWizardShowErrors(true);
-                            return;
-                          }
-
-                          confetti({
-                            particleCount: 150,
-                            spread: 80,
-                            origin: { y: 0.6 }
-                          });
-
-                          const isEdit = !!editingProduct;
-
-                          const colorAttr = wizardVariantAttrs?.find(a =>
-                            ["color", "couleur", "لون", "اللون", "shade", "colors", "finition"].some(c => a.name.toLowerCase().includes(c))
-                          );
-                          const sizeAttr = wizardVariantAttrs?.find(a =>
-                            ["size", "taille", "مقاس", "حجم", "pointure"].some(s => a.name.toLowerCase().includes(s))
-                          );
-
-                          const resolveDraftSwatchHex = (colorName: string): string => {
-                            if (!colorName) return "#6366f1";
-                            if (colorName.startsWith("#") || colorName.startsWith("rgb")) return colorName;
-                            const map: Record<string, string> = {
-                              black: "#111827", noir: "#111827", "أسود": "#111827", "اسود": "#111827",
-                              white: "#ffffff", blanc: "#ffffff", "أبيض": "#ffffff", "ابيض": "#ffffff",
-                              red: "#dc2626", rouge: "#dc2626", "أحمر": "#dc2626", "احمر": "#dc2626",
-                              blue: "#2563eb", bleu: "#2563eb", "أزرق": "#2563eb", "ازرق": "#2563eb",
-                              green: "#16a34a", vert: "#16a34a", "أخضر": "#16a34a", "اخضر": "#16a34a",
-                              yellow: "#eab308", jaune: "#eab308", "أصفر": "#eab308", "اصفر": "#eab308",
-                              brown: "#78350f", marron: "#78350f", "بني": "#78350f",
-                              grey: "#6b7280", gray: "#6b7280", gris: "#6b7280", "رمادي": "#6b7280",
-                              pink: "#ec4899", rose: "#ec4899", "وردي": "#ec4899", "زهري": "#ec4899",
-                              gold: "#eab308", "ذهبي": "#eab308",
-                              silver: "#94a3b8", argent: "#94a3b8", "فضي": "#94a3b8",
-                              orange: "#ea580c", "برتقالي": "#ea580c",
-                              beige: "#f5ebe0", "بيج": "#f5ebe0",
-                              navy: "#1e3a8a", "كحلي": "#1e3a8a",
-                              cream: "#fef3c7", "كريمي": "#fef3c7"
-                            };
-                            const lower = colorName.toLowerCase().trim();
-                            if (map[lower]) return map[lower];
-                            for (const [k, v] of Object.entries(map)) {
-                              if (lower.includes(k) || k.includes(lower)) return v;
-                            }
-                            return "#6366f1";
-                          };
-
-                          const derivedColors = colorAttr && colorAttr.tags.length > 0
-                            ? colorAttr.tags.map(t => ({ name: t, hex: resolveDraftSwatchHex(t) }))
-                            : (isEdit ? (editingProduct.colors || []) : []);
-                          const derivedSizes = sizeAttr && sizeAttr.tags.length > 0
-                            ? sizeAttr.tags
-                            : (wizardProductSizes && wizardProductSizes.length > 0 ? wizardProductSizes : (isEdit ? (editingProduct.sizes || []) : []));
-
-                          const combinedSpecs = [...(wizardProductSpecs || [])];
-                          if (wizardVariantsEnabled && wizardVariantAttrs && wizardVariantAttrs.length > 0) {
-                            wizardVariantAttrs.forEach(attr => {
-                              if (attr.name && attr.tags.length > 0) {
-                                const alreadyHas = combinedSpecs.some(s => s.key.toLowerCase() === attr.name.toLowerCase());
-                                if (!alreadyHas) {
-                                  combinedSpecs.push({ key: attr.name, value: attr.tags.join(" / ") });
-                                }
-                              }
-                            });
-                          }
-
-                          const totalVariantStock = wizardVariantsEnabled && wizardProductVariants && wizardProductVariants.length > 0
-                            ? wizardProductVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
-                            : (wizardColorStockTrackingEnabled && wizardColorSwatches && wizardColorSwatches.length > 0
-                                ? wizardColorSwatches.reduce((acc: number, s: any) => acc + (Number(s.stock) || 0), 0)
-                                : (wizardStock === "" ? 10 : Number(wizardStock)));
-
-                          const autoLandingHtml = generateStandaloneAdLandingPageHtml({
-                            title: blankProductName || "Artisan Hand-Crafted Masterpiece",
-                            sku: blankProductSku || "SKU-001",
-                            category: blankProductCategory || "Crafts",
-                            description: wizardProductStory || "",
-                            technicalDescription: blankProductDescription || "",
-                            seoKeywords: wizardSeoKeywords || "",
-                            currency: wizardCurrency,
-                            basePrice: Number(blankProductPrice),
-                            discountEnabled: wizardDiscountEnabled,
-                            discountPercent: wizardDiscountPercent,
-                            carrier: wizardDeliveryCompany || "Yalidine Express",
-                            brandColor: blankProductBrandColor || currentSlideColor,
-                            images: wizardImages.filter(Boolean),
-                            videoLinks: wizardLinks.filter(Boolean),
-                            specs: combinedSpecs,
-                            variants: wizardVariantsEnabled ? wizardProductVariants : [],
-                            colorSwatches: wizardColorSwatches,
-                            sizes: derivedSizes || [],
-                            sizePrices: wizardSizePrices,
-                            storyEnabled: wizardAdvancedStoryEnabled,
-                            storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
-                            facebookPixelId: wizardFacebookPixelId,
-                            tiktokPixelId: wizardTiktokPixelId,
-                          });
-
-                          const newWizardProductDraft = {
-                            id: isEdit ? editingProduct.id : `p-wizard-${Date.now()}`,
-                            name: blankProductName || "Artisan Hand-Crafted Masterpiece",
-                            price: Number(blankProductPrice),
-                            purchasePrice: wizardPurchasePrice === "" ? 0 : Number(wizardPurchasePrice),
-                            buyPrice: wizardPurchasePrice === "" ? 0 : Number(wizardPurchasePrice),
-                            shippingType: wizardShippingType,
-                            realDeliveryCost: Number(wizardRealDeliveryCost || 450),
-                            shippingCost: wizardShippingType === "free" ? 0 : Number(wizardRealDeliveryCost || 450),
-                            deliveryCompany: wizardDeliveryCompany || connectedDeliveryCompanies[0]?.name || "Yalidine Express",
-                            description: wizardProductStory || blankProductDescription || (generatedCopy?.description_en || ""),
-                            imageUrl: wizardImages[0] || "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80",
-                            images: wizardImages.filter(Boolean),
-                            category: blankProductCategory as any,
-                            stock: totalVariantStock,
-                            rating: isEdit ? (editingProduct.rating || 4.9) : 4.9,
-                            reviewsCount: isEdit ? (editingProduct.reviewsCount || 1) : 1,
-                            reviews: isEdit ? (editingProduct.reviews || []) : [],
-                            verified: isEdit ? (editingProduct.verified !== undefined ? editingProduct.verified : true) : true,
-                            sku: blankProductSku || `DZ-${(blankProductCategory || "Craft").substring(0, 3).toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`,
-                            colors: wizardColorSwatches && wizardColorSwatches.length > 0
-                              ? wizardColorSwatches.map((s, sIdx) => {
-                                  const activePrimaryImgs = wizardImages.filter(Boolean);
-                                  const primaryImg = s.imageUrl || (s.images && s.images[0]) || activePrimaryImgs[sIdx] || "";
-                                  const detailImgs = wizardDetailedImagesPerColorEnabled && primaryImg
-                                    ? (wizardDetailedImagesByPrimary[primaryImg] || []).filter(Boolean).slice(0, 5)
-                                    : [];
-                                  const mergedImgs = wizardDetailedImagesPerColorEnabled && primaryImg
-                                    ? [primaryImg, ...detailImgs]
-                                    : (s.images && s.images.length > 0 ? s.images : (primaryImg ? [primaryImg] : []));
-                                  return {
-                                    name: s.name,
-                                    hex: s.hex || resolveDraftSwatchHex(s.name),
-                                    imageUrl: primaryImg,
-                                    images: mergedImgs,
-                                    isHot: !!s.isHot,
-                                    price: s.price !== undefined ? Number(s.price) : undefined,
-                                    stock: s.stock !== undefined && s.stock !== "" ? Number(s.stock) : undefined
-                                  };
-                                })
-                              : derivedColors.map((dc: any, dcIdx: number) => {
-                                  const activePrimaryImgs = wizardImages.filter(Boolean);
-                                  const primaryImg = dc.imageUrl || activePrimaryImgs[dcIdx] || "";
-                                  const detailImgs = wizardDetailedImagesPerColorEnabled && primaryImg
-                                    ? (wizardDetailedImagesByPrimary[primaryImg] || []).filter(Boolean).slice(0, 5)
-                                    : [];
-                                  return {
-                                    ...dc,
-                                    imageUrl: primaryImg || dc.imageUrl,
-                                    images: wizardDetailedImagesPerColorEnabled && primaryImg ? [primaryImg, ...detailImgs] : (dc.images || (primaryImg ? [primaryImg] : []))
-                                  };
-                                }),
-                            colorVariantStyle: wizardColorDisplayStyle,
-                            colorStockTrackingEnabled: wizardColorStockTrackingEnabled,
-                            detailedImagesPerColorEnabled: wizardDetailedImagesPerColorEnabled,
-                            detailedImagesByPrimary: wizardDetailedImagesPerColorEnabled ? wizardDetailedImagesByPrimary : {},
-                            sizes: derivedSizes,
-                            sizePrices: wizardSizePrices,
-                            sizesWithPrices: (derivedSizes || []).map((s: string) => ({
-                              name: s,
-                              price: wizardSizePrices?.[s] !== undefined ? Number(wizardSizePrices[s]) : undefined
-                            })),
-                            specifications: combinedSpecs.length > 0 ? combinedSpecs : (isEdit ? (editingProduct.specifications || []) : []),
-                            hashtags: wizardSeoKeywords.trim() || undefined,
-                            description_ar: isEdit ? (editingProduct.description_ar || "") : (generatedCopy?.description_ar || manualProductForm.description_ar || ""),
-                            description_fr: isEdit ? (editingProduct.description_fr || "") : (generatedCopy?.description_fr || manualProductForm.description_fr || ""),
-                            description_en: wizardProductStory || blankProductDescription || (generatedCopy?.description_en || ""),
-                            videoUrl: wizardLinks[0] || "",
-                            videoUrls: wizardLinks.filter(Boolean),
-                            videoMetadata: isEdit ? (editingProduct.videoMetadata || {}) : {},
-                            discountEnabled: wizardDiscountEnabled,
-                            discountPercent: wizardDiscountPercent,
-                            timerEnabled: wizardTimerEnabled,
-                            timerHours: wizardTimerHours,
-                            timerStyle: wizardTimerStyle,
-                            currency: wizardCurrency,
-                            uploadedLandingPageContent: wizardLandingPageContent || autoLandingHtml,
-                            advancedLandingPageEnabled: wizardAdvancedStoryEnabled,
-                            advancedProductStorySections: wizardAdvancedStorySections,
-                            variants: wizardVariantsEnabled ? wizardProductVariants : [],
-                            isBundle: wizardBundleEnabled,
-                            bundleItems: wizardBundleEnabled ? wizardBundleItems : [],
-                            bundlePrice: wizardBundleEnabled ? Number(wizardBundlePrice) : Number(blankProductPrice),
-                            offersConfig: wizardOffersConfig,
-                            sizingFitConfig:
-                              isEligibleForSizingFit && wizardSizingFitConfig?.enabled
-                                ? wizardSizingFitConfig
-                                : undefined,
-                          };
-
-                          setStores((prevStores) =>
-                            prevStores.map((s) => {
-                              if (s.id === myStore.id) {
-                                let updatedProducts;
-                                if (isEdit) {
-                                  updatedProducts = s.products.map(p => p.id === editingProduct.id ? newWizardProductDraft : p);
-                                } else {
-                                  updatedProducts = [newWizardProductDraft, ...s.products];
-                                }
-                                return {
-                                  ...s,
-                                  products: updatedProducts,
-                                };
-                              }
-                              return s;
-                            })
-                          );
-
-                          setMerchantFeedbackMessage(isEdit ? "Your masterfully modified product page has been saved successfully!" : "Your masterfully designed product page has been saved to your active catalog successfully!");
-                          localStorage.removeItem("yomi_product_creation_autosave");
-                          setMerchantSubTab("products");
-                        }}
-                        className="flex-1 hover:brightness-110 text-white border border-white/20 font-bold text-xs py-3.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer select-none"
-                        style={{
-                          backgroundColor: "var(--yume-theme-header-color, " + (darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")) + ")"
-                        }}
-                      >
-                        <CheckCircle className="w-4 h-4 text-emerald-300 stroke-[2.5]" />
-                        {editingProduct ? "Save Modified Product Changes" : "1. Direct Product Publish to Store Catalog"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          let firstFailedStep = -1;
-                          for (let st = 1; st <= 4; st++) {
-                            if (!validateWizardStep(st)) {
-                              firstFailedStep = st;
-                              break;
-                            }
-                          }
-                          if (firstFailedStep !== -1) {
-                            setWizardStep(firstFailedStep);
-                            setWizardShowErrors(true);
-                            return;
-                          }
-
-                          const generatedHtml = generateStandaloneAdLandingPageHtml({
-                            title: blankProductName || "Premium Boutique Product",
-                            sku: blankProductSku || "SKU-001",
-                            category: blankProductCategory || "Crafts",
-                            description: wizardProductStory || "",
-                            technicalDescription: blankProductDescription || "",
-                            seoKeywords: wizardSeoKeywords || "",
-                            currency: wizardCurrency,
-                            basePrice: Number(blankProductPrice || 3500),
-                            discountEnabled: wizardDiscountEnabled,
-                            discountPercent: wizardDiscountPercent,
-                            carrier: wizardDeliveryCompany || "Yalidine Express",
-                            brandColor: blankProductBrandColor || currentSlideColor,
-                            images: wizardImages.filter(Boolean),
-                            videoLinks: wizardLinks.filter(Boolean),
-                            specs: wizardProductSpecs || [],
-                            variants: wizardVariantsEnabled ? wizardProductVariants : [],
-                            colorSwatches: wizardColorSwatches,
-                            sizes: wizardProductSizes || [],
-                            sizePrices: wizardSizePrices,
-                            storyEnabled: wizardAdvancedStoryEnabled,
-                            storySections: wizardAdvancedStoryEnabled ? wizardAdvancedStorySections : [],
-                            facebookPixelId: wizardFacebookPixelId,
-                            tiktokPixelId: wizardTiktokPixelId,
-                          });
-                          const slug = (blankProductName || "product")
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, "_")
-                            .replace(/^_|_$/g, "");
-                          setWizardLandingPageFileName(`${slug || "product"}_cod_ad_landing.html`);
-                          setWizardLandingPageContent(generatedHtml);
-                          setShowWizardLivePreview(true);
-                          setMerchantFeedbackMessage("2. Automated COD Ad Landing Page generated & synced with Live Preview!");
-                        }}
-                        className="flex-1 bg-stone-900 hover:bg-stone-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white border border-stone-700 font-bold text-xs py-3.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer select-none"
-                      >
-                        <Sparkles className="w-4 h-4 text-amber-300" />
-                        <span>2. Generate &amp; Launch Ad Landing Page (COD)</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Back / Next Navigation Controls (Styled like Orders Footer Bar) */}
+                {/* Back / Next / Publish Navigation Controls */}
                 <div className="flex items-center justify-between gap-4 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200/80 dark:border-slate-800 shadow-xs relative z-10">
                   <button
                     type="button"
@@ -12933,30 +13018,35 @@ export default function MerchantDashboard({
                     Step {Math.max(1, activeWizardStepSequence.indexOf(wizardStep) + 1)} of {activeWizardStepSequence.length}
                   </span>
 
-                  <button
-                    type="button"
-                    disabled={wizardStep === 5}
-                    onClick={() => {
-                      if (wizardStep === 3.5 || validateWizardStep(wizardStep)) {
-                        const currIdx = activeWizardStepSequence.indexOf(wizardStep);
-                        if (currIdx >= 0 && currIdx < activeWizardStepSequence.length - 1) {
-                          setWizardStep(activeWizardStepSequence[currIdx + 1]);
+                  {wizardStep === 4 ? (
+                    <span className="text-xs font-medium text-stone-500 dark:text-slate-400">
+                      Final step
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (wizardStep === 3.5 || validateWizardStep(wizardStep)) {
+                          const currIdx = activeWizardStepSequence.indexOf(wizardStep);
+                          if (currIdx >= 0 && currIdx < activeWizardStepSequence.length - 1) {
+                            setWizardStep(activeWizardStepSequence[currIdx + 1]);
+                          } else {
+                            setWizardStep(prev => Math.min(4, prev + 1));
+                          }
+                          setWizardShowErrors(false);
                         } else {
-                          setWizardStep(prev => prev + 1);
+                          setWizardShowErrors(true);
                         }
-                        setWizardShowErrors(false);
-                      } else {
-                        setWizardShowErrors(true);
-                      }
-                    }}
-                    style={{
-                      backgroundColor: "var(--yume-theme-header-color, " + (darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")) + ")"
-                    }}
-                    className="px-5 py-2.5 hover:brightness-110 text-white border border-white/20 shadow-sm rounded-xl text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                  >
-                    <span>Next Step</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-white" />
-                  </button>
+                      }}
+                      style={{
+                        backgroundColor: "var(--yume-theme-header-color, " + (darkMode ? "#0f172a" : (currentSlideColor || "#0b2447")) + ")"
+                      }}
+                      className="px-5 py-2.5 hover:brightness-110 text-white border border-white/20 shadow-sm rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                      <span>Next Step</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-white" />
+                    </button>
+                  )}
                 </div>
 
               </div>
@@ -15811,7 +15901,7 @@ export default function MerchantDashboard({
                 ) : filteredOrders.length === 0 ? (
                   <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-slate-400 space-y-3">
                     <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mx-auto shadow-sm">
-                      <Package className="w-6 h-6 text-slate-300" />
+                      <ClipboardList className="w-6 h-6 text-slate-400" strokeWidth={1.75} />
                     </div>
                     <p className="text-xs font-bold">{TRANSLATIONS[merchantLang].noOrders}</p>
                   </div>
@@ -17122,6 +17212,48 @@ export default function MerchantDashboard({
             />
 
           </div>
+        )}
+
+        {/* SUBTAB PARTNER PICKS (Independent Reciprocal Partnerships Workspace) */}
+        {merchantSubTab === "partner-picks" && (
+          <PartnerPicksMerchantWorkspace
+            currentStore={myStore}
+            allStores={stores}
+            currentUser={currentUser}
+            globalConfig={
+              partnerPicksContext?.globalConfig || createDefaultPartnerPicksGlobalConfig()
+            }
+            profilesByStoreId={partnerPicksContext?.profilesByStoreId || {}}
+            partnerships={partnerPicksContext?.partnerships || []}
+            placements={partnerPicksContext?.placements || []}
+            exposureLedgers={partnerPicksContext?.exposureLedgers || {}}
+            storiesEnabledMap={storiesEnabledByStore}
+            isDarkMode={darkMode}
+            lang={merchantLang}
+            initialPartnershipId={partnerPicksContext?.initialPartnershipId}
+            onSaveProfile={
+              partnerPicksContext?.onSaveProfile || (async () => {})
+            }
+            onSendPartnershipRequest={
+              partnerPicksContext?.onSendPartnershipRequest || (async () => {})
+            }
+            onRespondToPartnership={
+              partnerPicksContext?.onRespondToPartnership || (async () => {})
+            }
+            onProposePlacement={
+              partnerPicksContext?.onProposePlacement || (async () => {})
+            }
+            onHostSelectPlacement={
+              partnerPicksContext?.onHostSelectPlacement || (async () => {})
+            }
+            onProposerConfirmPlacement={
+              partnerPicksContext?.onProposerConfirmPlacement || (async () => {})
+            }
+            onRemovePlacement={
+              partnerPicksContext?.onRemovePlacement || (async () => {})
+            }
+            onViewStore={partnerPicksContext?.onViewStore}
+          />
         )}
 
         {/* SUBTAB AD CAMPAIGNS & PIXELS */}
@@ -26050,27 +26182,6 @@ export default function MerchantDashboard({
                   <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                     {merchantLang === "ar" ? "إدارة القصص" : "Manage Stories"}
                   </h2>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                      isProfileStoriesEnabled(myStore, storiesEnabledByStore)
-                        ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
-                        : "bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-400 border-stone-200 dark:border-slate-700"
-                    }`}
-                  >
-                    {isProfileStoriesEnabled(myStore, storiesEnabledByStore)
-                      ? merchantLang === "ar"
-                        ? "ميزة القصص مفعّلة"
-                        : "Stories Enabled"
-                      : merchantLang === "ar"
-                      ? "ميزة القصص معطّلة افتراضياً"
-                      : "Stories Disabled"}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 border border-stone-200/60 dark:border-slate-700">
-                    {getRawPublishedStoreStories(myStore, customStoriesByStore, deletedStoryIdsByStore, dashboardStoriesClock).slice(0, maxStorySlots).length} / {maxStorySlots} {merchantLang === "ar" ? "قصص منشورة" : "Published"}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
-                    {storePlanPermissions.planName} Plan · {maxStorySlots} Slots
-                  </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                   {merchantLang === "ar"
@@ -28353,6 +28464,36 @@ export default function MerchantDashboard({
 
               {/* Notifications List Body */}
               <div className="p-5 overflow-y-auto flex-1 space-y-3">
+                {pendingNotifyForStore.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200/90 space-y-2.5 mb-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-rose-700">
+                        Customer "Notify Me" Requests ({pendingNotifyForStore.length})
+                      </span>
+                    </div>
+                    {pendingNotifyForStore.map((req) => (
+                      <div
+                        key={req.id}
+                        className="p-3 rounded-xl bg-white border border-rose-100 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-900 truncate">{req.productName}</div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {req.variantLabel ? `${req.variantLabel} • ` : ""}
+                            {formatWaitingCountLabel(req.requestCount)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRestockNotifyRequest(req, 10)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shrink-0 cursor-pointer"
+                        >
+                          Restock +10
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {!lowStockAlertsEnabled ? (
                   <div className="text-center py-10 text-slate-400">
                     <Bell className="w-10 h-10 mx-auto text-slate-300 mb-2" />

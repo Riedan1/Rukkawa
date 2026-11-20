@@ -163,6 +163,167 @@
         "integrityHash": { "type": "string", "maxLength": 128 }
       },
       "required": ["id", "timestamp", "actorUid", "actorEmail", "actorRole", "module", "action", "targetEntityType", "targetEntityId", "marketScope", "reason", "integrityHash"]
+    },
+    "PartnerPicksGlobalConfig": {
+      "title": "Partner Picks Global & Channel Governance Config",
+      "description": "Platform Admin governance config for Partner Picks across all 5 channels, canonical plan entitlements, max-2 partner cap, and smart frequency limits (independent from paid advertising)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "featureEnabled": { "type": "boolean" },
+        "maxSimultaneousPartnerStores": { "type": "integer" },
+        "defaultRotationMode": { "type": "string", "enum": ["REFRESH_BASED", "TIMED_ROTATION"], "maxLength": 32 },
+        "timedRotationEnabled": { "type": "boolean" },
+        "timedRotationIntervalSeconds": { "type": "integer" },
+        "channels": { "type": "object" },
+        "planEntitlements": { "type": "object" },
+        "smartFrequency": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedByAdminId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "featureEnabled", "maxSimultaneousPartnerStores", "defaultRotationMode", "timedRotationEnabled", "timedRotationIntervalSeconds", "channels", "planEntitlements", "smartFrequency", "updatedAt", "updatedByAdminId"]
+    },
+    "MerchantPartnerPicksProfile": {
+      "title": "Merchant Partner Picks Profile & Shared Catalog Config",
+      "description": "Per-store Partner Picks configuration storing common default shared products, per-partnership custom product lists, host channel consent, spatial slots, sequential consent, and staff permissions",
+      "type": "object",
+      "properties": {
+        "storeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "defaultSharedProductIds": { "type": "array" },
+        "partnershipProductMode": { "type": "object" },
+        "customProductIdsByPartnership": { "type": "object" },
+        "hostChannelConsent": { "type": "object" },
+        "hostSpatialAllowedSlots": { "type": "object" },
+        "hostSequentialMediaConsent": { "type": "object" },
+        "staffPermissions": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["storeId", "ownerUid", "defaultSharedProductIds", "partnershipProductMode", "customProductIdsByPartnership", "hostChannelConsent", "hostSpatialAllowedSlots", "hostSequentialMediaConsent", "staffPermissions", "updatedAt"]
+    },
+    "PartnerPicksPartnership": {
+      "title": "Partner Picks Reciprocal Partnership Agreement",
+      "description": "Bilateral reciprocal partnership record between Store A and Store B with two-sided agreement terms and status lifecycle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeAId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeAName": { "type": "string", "maxLength": 160 },
+        "storeAOwnerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeBId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeBName": { "type": "string", "maxLength": 160 },
+        "storeBOwnerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "initiatedByStoreId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING_REQUEST", "ACCEPTED", "TERMS_PENDING", "PLACEMENT_PENDING", "ACTIVE", "REJECTED", "CANCELLED", "EXPIRED", "SUSPENDED"],
+          "maxLength": 32
+        },
+        "requestMessage": { "type": "string", "maxLength": 500 },
+        "agreementTerms": { "type": "object" },
+        "activatedAt": { "type": "string", "maxLength": 64 },
+        "expiresAt": { "type": "string", "maxLength": 64 },
+        "suspendedByAdminId": { "type": "string", "maxLength": 128 },
+        "suspendedReason": { "type": "string", "maxLength": 500 },
+        "previousStatusBeforeSuspension": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "storeAId", "storeAName", "storeAOwnerUid", "storeBId", "storeBName", "storeBOwnerUid", "initiatedByStoreId", "status", "agreementTerms", "createdAt", "updatedAt"]
+    },
+    "PartnerPickProductPlacement": {
+      "title": "Partner Pick Product Placement & 6-State Lifecycle Record",
+      "description": "Individual product placement record within a partnership with two-sided approval (propose -> host select -> proposer final approve) and 6-state live product availability tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "partnershipId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceStoreId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceStoreOwnerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hostStoreId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hostStoreOwnerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "channelId": {
+          "type": "string",
+          "enum": ["STORE_BANNER", "PRODUCT_GRID", "DISCOVER_MORE", "REELS_FEED", "STORIES"],
+          "maxLength": 32
+        },
+        "proposedOptions": { "type": "array" },
+        "selectedOptionId": { "type": "string", "maxLength": 128 },
+        "selectedOption": { "type": "object" },
+        "hostSelectedAt": { "type": "string", "maxLength": 64 },
+        "proposerFinalApproved": { "type": "boolean" },
+        "proposerFinalApprovedAt": { "type": "string", "maxLength": 64 },
+        "trafficLight": {
+          "type": "string",
+          "enum": ["GREEN", "YELLOW", "RED"],
+          "maxLength": 16
+        },
+        "lifecycleState": {
+          "type": "string",
+          "enum": [
+            "PROPOSED_AWAITING_HOST_SELECTION",
+            "HOST_SELECTED_AWAITING_FINAL_APPROVAL",
+            "APPROVED_LIVE",
+            "REJECTED_BY_HOST",
+            "REJECTED_BY_PROPOSER",
+            "AUTO_PAUSED_OUT_OF_STOCK",
+            "PAUSED_OWNER_HIDDEN",
+            "PAUSED_OWNER_DISABLED",
+            "PAUSED_OWNER_ARCHIVED",
+            "INVALIDATED_PRODUCT_REMOVED",
+            "SUSPENDED_BY_PLATFORM_ADMIN"
+          ],
+          "maxLength": 64
+        },
+        "activityHistory": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "partnershipId", "sourceStoreId", "sourceStoreOwnerUid", "hostStoreId", "hostStoreOwnerUid", "productId", "channelId", "proposedOptions", "proposerFinalApproved", "trafficLight", "lifecycleState", "activityHistory", "createdAt", "updatedAt"]
+    },
+    "PartnerPicksBidirectionalExposureLedger": {
+      "title": "Partner Picks Bidirectional Pairwise Exposure Ledger",
+      "description": "Tracks directional exposure counters (directionAOnB and directionBOnA) across all 5 channels for reciprocal fairness evaluation",
+      "type": "object",
+      "properties": {
+        "partnershipId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeAId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeBId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "directionAOnB": { "type": "object" },
+        "directionBOnA": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["partnershipId", "storeAId", "storeBId", "directionAOnB", "directionBOnA", "updatedAt"]
+    },
+    "PartnerPicksChannelAnalyticsEvent": {
+      "title": "Partner Picks Per-Channel Analytics Event",
+      "description": "Idempotent cross-store analytics telemetry record attributed to a specific Partner Picks channel, placement, host store, and source store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "idempotencyKey": { "type": "string", "maxLength": 256 },
+        "partnershipId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "placementId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hostStoreId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceStoreId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "channelId": {
+          "type": "string",
+          "enum": ["STORE_BANNER", "PRODUCT_GRID", "DISCOVER_MORE", "REELS_FEED", "STORIES"],
+          "maxLength": 32
+        },
+        "productId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": {
+          "type": "string",
+          "enum": ["opportunity", "impression", "click", "skip", "original_product_open"],
+          "maxLength": 32
+        },
+        "visitorHash": { "type": "string", "maxLength": 128 },
+        "rotationEpoch": { "type": "integer" },
+        "exposureDurationMs": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "idempotencyKey", "partnershipId", "placementId", "hostStoreId", "sourceStoreId", "channelId", "productId", "eventType", "visitorHash", "rotationEpoch", "timestamp"]
     }
   },
   "firestore": {
@@ -201,6 +362,30 @@
     "/platform_audit_logs/{logId}": {
       "schema": "PlatformAuditLog",
       "description": "Stores immutable append-only Platform Admin audit log entries"
+    },
+    "/partner_picks_config/{configId}": {
+      "schema": "PartnerPicksGlobalConfig",
+      "description": "Stores Platform Admin Partner Picks global & per-channel configuration (configId = 'global')"
+    },
+    "/partner_picks_profiles/{storeId}": {
+      "schema": "MerchantPartnerPicksProfile",
+      "description": "Stores per-merchant Partner Picks shared product collections, host channel consent, spatial slots, and staff permissions"
+    },
+    "/partner_picks_partnerships/{partnershipId}": {
+      "schema": "PartnerPicksPartnership",
+      "description": "Stores bilateral reciprocal Partner Picks partnerships between two stores"
+    },
+    "/partner_picks_placements/{placementId}": {
+      "schema": "PartnerPickProductPlacement",
+      "description": "Stores individual Partner Pick product placements with two-sided approval and 6-state product availability lifecycle"
+    },
+    "/partner_picks_exposure_ledger/{partnershipId}": {
+      "schema": "PartnerPicksBidirectionalExposureLedger",
+      "description": "Stores bidirectional pairwise exposure counters (A->B and B->A) across all 5 channels"
+    },
+    "/partner_picks_analytics_events/{eventId}": {
+      "schema": "PartnerPicksChannelAnalyticsEvent",
+      "description": "Stores idempotent per-channel Partner Picks analytics telemetry events"
     }
   }
 }

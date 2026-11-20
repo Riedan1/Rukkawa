@@ -1,5 +1,48 @@
 {
-  "stores": [],
+  "stores": [
+    {
+      "id": "store_1",
+      "name": "store_1",
+      "designSettings": {
+        "dockSettings": {
+          "appearance": {
+            "buttonScale": 1,
+            "spacingPreset": "medium",
+            "customGapPx": 12,
+            "theme": "frosted",
+            "buttonColors": {
+              "followBg": "#0f9d76",
+              "followText": "#ffffff",
+              "messageBg": "#4f46e5",
+              "messageText": "#ffffff",
+              "moreBg": "#4f46e5",
+              "moreText": "#ffffff"
+            },
+            "enableTooltips": true,
+            "enableActiveIndicators": true
+          },
+          "visibility": {
+            "followerCountMode": "actual",
+            "showStoreLocation": true,
+            "navigation": {
+              "products": true,
+              "reels": true,
+              "compare": true,
+              "picks": true,
+              "reviews": true,
+              "saved": true,
+              "deals": true,
+              "search": true,
+              "filters": true,
+              "layout": true
+            }
+          },
+          "updatedAt": "2026-11-19T17:17:19.390Z",
+          "updatedByOwnerEmail": "owner@tapis.dz"
+        }
+      }
+    }
+  ],
   "orders": [
     {
       "id": "ORD-2026-9812",
@@ -72,7 +115,7 @@
   ],
   "shipments": [],
   "coupons": [],
-  "lastUpdated": "2026-11-13T15:54:28.185Z",
+  "lastUpdated": "2026-11-20T08:36:33.701Z",
   "users": [
     {
       "id": "usr_1792945452124_6pc1oe",
@@ -213,7 +256,1655 @@
         "integrityHash": "22ee34fed22977c24ea28c86d322fea7534806ca00412b7207b6ba8f397cf2bb"
       }
     ],
-    "updatedAt": "2026-11-13T14:39:24.583Z"
+    "updatedAt": "2026-11-16T21:58:38.405Z",
+    "brandIdentityPublished": {
+      "version": 2,
+      "publishedAt": "2026-11-16T21:58:38.400Z",
+      "publishedBy": "admin",
+      "groups": {
+        "header": {
+          "id": "header",
+          "label": "Header Color Palette",
+          "description": "Controls the sticky platform header (#main-studio-header), premier hero banners, and synchronized workspace navigation.",
+          "cssVarName": "--yume-theme-header-color",
+          "colors": [
+            {
+              "id": "header_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "header_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "header_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "header_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "header_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "header_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "header_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "header_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "header_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "header_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "refresh",
+            "intervalSeconds": 30,
+            "staticColorId": "header_yume_c_espresso_cocoa"
+          }
+        },
+        "footer": {
+          "id": "footer",
+          "label": "Footer Color Palette",
+          "description": "Controls the YUME footer gradient and back-to-top bar. Synchronized with the active header color by default.",
+          "cssVarName": "--yume-theme-footer-color",
+          "colors": [
+            {
+              "id": "footer_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "footer_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "footer_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "footer_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "footer_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "footer_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "footer_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "footer_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "footer_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "footer_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "refresh",
+            "intervalSeconds": 30,
+            "staticColorId": "footer_yume_c_espresso_cocoa",
+            "syncWithHeader": true
+          }
+        },
+        "buttons": {
+          "id": "buttons",
+          "label": "Buttons Color Palette",
+          "description": "Controls primary and secondary call-to-action buttons, checkout buttons, and interactive pills.",
+          "cssVarName": "--yume-color-btn-primary",
+          "colors": [
+            {
+              "id": "buttons_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "buttons_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "buttons_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "buttons_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "buttons_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "buttons_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "buttons_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "buttons_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "buttons_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "buttons_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "static",
+            "intervalSeconds": 30,
+            "staticColorId": "buttons_yume_c_espresso_cocoa"
+          }
+        },
+        "links": {
+          "id": "links",
+          "label": "Links Color Palette",
+          "description": "Controls interactive text links, breadcrumb highlights, and action links across pages.",
+          "cssVarName": "--yume-color-link",
+          "colors": [
+            {
+              "id": "links_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "links_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "links_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "links_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "links_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "links_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "links_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "links_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "links_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "links_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "interval",
+            "intervalSeconds": 30,
+            "staticColorId": "links_yume_c_crimson_rose"
+          }
+        },
+        "backgrounds": {
+          "id": "backgrounds",
+          "label": "Background Color Palette",
+          "description": "Controls soft editorial surface tints, feature banners, and section backgrounds (such as #F9FBF4).",
+          "cssVarName": "--yume-color-bg-surface",
+          "colors": [
+            {
+              "id": "backgrounds_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "backgrounds_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "backgrounds_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "backgrounds_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "backgrounds_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 4
+            }
+          ],
+          "rotation": {
+            "mode": "static",
+            "intervalSeconds": 60,
+            "staticColorId": "backgrounds_yume_c_alabaster_sage"
+          }
+        },
+        "accents": {
+          "id": "accents",
+          "label": "Accent Colors",
+          "description": "Controls product detail curved accents, verified badges, active filter indicators, and highlights.",
+          "cssVarName": "--yume-color-accent",
+          "colors": [
+            {
+              "id": "accents_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "accents_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "accents_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "accents_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "accents_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "accents_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "accents_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "accents_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "accents_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "accents_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "refresh",
+            "intervalSeconds": 30,
+            "staticColorId": "accents_yume_c_crimson_rose"
+          }
+        },
+        "additional": {
+          "id": "additional",
+          "label": "Additional Brand Colors",
+          "description": "Controls promotional callouts, modal accents, notification borders, and secondary brand tokens.",
+          "cssVarName": "--yume-color-brand-extra",
+          "colors": [
+            {
+              "id": "additional_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "additional_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "additional_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "additional_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "additional_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "additional_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "additional_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "additional_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "additional_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "additional_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "static",
+            "intervalSeconds": 45,
+            "staticColorId": "additional_yume_c_velvet_plum"
+          }
+        }
+      },
+      "themeConfig": {
+        "adaptContrastAutomatically": true,
+        "respectReducedMotion": true,
+        "darkModeSurfaceBlend": true
+      }
+    },
+    "brandIdentityPrevious": {
+      "version": 1,
+      "publishedAt": "2026-11-16T00:00:00.000Z",
+      "publishedBy": "system_default",
+      "groups": {
+        "header": {
+          "id": "header",
+          "label": "Header Color Palette",
+          "description": "Controls the sticky platform header (#main-studio-header), premier hero banners, and synchronized workspace navigation.",
+          "cssVarName": "--yume-theme-header-color",
+          "colors": [
+            {
+              "id": "header_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "header_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "header_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "header_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "header_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "header_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "header_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "header_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "header_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "header_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "refresh",
+            "intervalSeconds": 30,
+            "staticColorId": "header_yume_c_espresso_cocoa"
+          }
+        },
+        "footer": {
+          "id": "footer",
+          "label": "Footer Color Palette",
+          "description": "Controls the YUME footer gradient and back-to-top bar. Synchronized with the active header color by default.",
+          "cssVarName": "--yume-theme-footer-color",
+          "colors": [
+            {
+              "id": "footer_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "footer_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "footer_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "footer_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "footer_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "footer_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "footer_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "footer_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "footer_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "footer_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "refresh",
+            "intervalSeconds": 30,
+            "staticColorId": "footer_yume_c_espresso_cocoa",
+            "syncWithHeader": true
+          }
+        },
+        "buttons": {
+          "id": "buttons",
+          "label": "Buttons Color Palette",
+          "description": "Controls primary and secondary call-to-action buttons, checkout buttons, and interactive pills.",
+          "cssVarName": "--yume-color-btn-primary",
+          "colors": [
+            {
+              "id": "buttons_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "buttons_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "buttons_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "buttons_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "buttons_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "buttons_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "buttons_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "buttons_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "buttons_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "buttons_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "static",
+            "intervalSeconds": 30,
+            "staticColorId": "buttons_yume_c_espresso_cocoa"
+          }
+        },
+        "links": {
+          "id": "links",
+          "label": "Links Color Palette",
+          "description": "Controls interactive text links, breadcrumb highlights, and action links across pages.",
+          "cssVarName": "--yume-color-link",
+          "colors": [
+            {
+              "id": "links_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "links_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "links_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "links_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "links_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "links_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "links_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "links_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "links_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "links_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "interval",
+            "intervalSeconds": 30,
+            "staticColorId": "links_yume_c_crimson_rose"
+          }
+        },
+        "backgrounds": {
+          "id": "backgrounds",
+          "label": "Background Color Palette",
+          "description": "Controls soft editorial surface tints, feature banners, and section backgrounds (such as #F9FBF4).",
+          "cssVarName": "--yume-color-bg-surface",
+          "colors": [
+            {
+              "id": "backgrounds_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "backgrounds_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "backgrounds_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "backgrounds_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "backgrounds_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 4
+            }
+          ],
+          "rotation": {
+            "mode": "static",
+            "intervalSeconds": 60,
+            "staticColorId": "backgrounds_yume_c_alabaster_sage"
+          }
+        },
+        "accents": {
+          "id": "accents",
+          "label": "Accent Colors",
+          "description": "Controls product detail curved accents, verified badges, active filter indicators, and highlights.",
+          "cssVarName": "--yume-color-accent",
+          "colors": [
+            {
+              "id": "accents_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "accents_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "accents_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "accents_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "accents_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "accents_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "accents_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "accents_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "accents_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "accents_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "refresh",
+            "intervalSeconds": 30,
+            "staticColorId": "accents_yume_c_crimson_rose"
+          }
+        },
+        "additional": {
+          "id": "additional",
+          "label": "Additional Brand Colors",
+          "description": "Controls promotional callouts, modal accents, notification borders, and secondary brand tokens.",
+          "cssVarName": "--yume-color-brand-extra",
+          "colors": [
+            {
+              "id": "additional_yume_c_velvet_plum",
+              "hex": "#806477",
+              "name": "Velvet Plum Aubergine",
+              "enabled": true,
+              "order": 0
+            },
+            {
+              "id": "additional_yume_c_dusty_mauve",
+              "hex": "#A66F78",
+              "name": "Dusty Mauve Rose",
+              "enabled": true,
+              "order": 1
+            },
+            {
+              "id": "additional_yume_c_crimson_rose",
+              "hex": "#A64B45",
+              "name": "Crimson Terracotta Rose",
+              "enabled": true,
+              "order": 2
+            },
+            {
+              "id": "additional_yume_c_espresso_cocoa",
+              "hex": "#4D4040",
+              "name": "Deep Espresso Cocoa",
+              "enabled": true,
+              "order": 3
+            },
+            {
+              "id": "additional_yume_c_alabaster_sage",
+              "hex": "#F9FBF4",
+              "name": "Alabaster Sage Cream",
+              "enabled": true,
+              "order": 4
+            },
+            {
+              "id": "additional_yume_c_midnight_navy",
+              "hex": "#0B2447",
+              "name": "Premier Midnight Navy",
+              "enabled": true,
+              "order": 5
+            },
+            {
+              "id": "additional_yume_c_royal_sapphire",
+              "hex": "#023E8A",
+              "name": "Royal Sapphire Blue",
+              "enabled": true,
+              "order": 6
+            },
+            {
+              "id": "additional_yume_c_forest_pine",
+              "hex": "#1B4332",
+              "name": "Deep Forest Pine",
+              "enabled": true,
+              "order": 7
+            },
+            {
+              "id": "additional_yume_c_imperial_berry",
+              "hex": "#5C0632",
+              "name": "Imperial Berry Wine",
+              "enabled": true,
+              "order": 8
+            },
+            {
+              "id": "additional_yume_c_charcoal_slate",
+              "hex": "#2D3748",
+              "name": "Charcoal Slate",
+              "enabled": true,
+              "order": 9
+            }
+          ],
+          "rotation": {
+            "mode": "static",
+            "intervalSeconds": 45,
+            "staticColorId": "additional_yume_c_velvet_plum"
+          }
+        }
+      },
+      "themeConfig": {
+        "adaptContrastAutomatically": true,
+        "respectReducedMotion": true,
+        "darkModeSurfaceBlend": true
+      }
+    }
   },
-  "returns": []
+  "returns": [],
+  "apiIdempotencyRecords": [],
+  "inventoryLedger": [],
+  "shipmentLineItems": [],
+  "shipmentDispatchBatches": [],
+  "shipmentReturnEvents": [],
+  "mediaAssets": [],
+  "piiSpool": [],
+  "subscriptionGovernance": {
+    "launchMode": "FREE_ONLY",
+    "paidUpgradesEnabled": false,
+    "autoLaunchExpiration": null,
+    "defaultSignupPlanCode": "Free",
+    "plans": [
+      {
+        "planCode": "Free",
+        "displayName": "Free Launch Tier",
+        "tierClassification": "launch_free",
+        "lifecycleState": "active",
+        "isPubliclyVisible": true,
+        "allowNewSubscriptions": true,
+        "allowUpgradesTo": false,
+        "monthlyDzd": 0,
+        "annualDzd": 0,
+        "monthlyUsd": 0,
+        "sortOrder": 0,
+        "entitlements": {
+          "maxActiveProducts": 25,
+          "maxPhotosPerProduct": 3,
+          "maxFileSizeMb": 5,
+          "allowVideoStream": false,
+          "maxCustomDomains": 0
+        },
+        "updatedAt": "2026-11-16T21:46:58.614Z"
+      },
+      {
+        "planCode": "Basic",
+        "displayName": "Basic",
+        "tierClassification": "commercial_paid",
+        "lifecycleState": "hidden",
+        "isPubliclyVisible": false,
+        "allowNewSubscriptions": false,
+        "allowUpgradesTo": false,
+        "monthlyDzd": 1900,
+        "annualDzd": 19000,
+        "monthlyUsd": 9,
+        "sortOrder": 1,
+        "entitlements": {
+          "maxActiveProducts": 50,
+          "maxPhotosPerProduct": 5,
+          "maxFileSizeMb": 8,
+          "allowVideoStream": false,
+          "maxCustomDomains": 0
+        },
+        "updatedAt": "2026-11-16T21:46:58.614Z"
+      },
+      {
+        "planCode": "Pro",
+        "displayName": "Pro",
+        "tierClassification": "commercial_paid",
+        "lifecycleState": "hidden",
+        "isPubliclyVisible": false,
+        "allowNewSubscriptions": false,
+        "allowUpgradesTo": false,
+        "monthlyDzd": 4900,
+        "annualDzd": 49000,
+        "monthlyUsd": 24,
+        "sortOrder": 2,
+        "entitlements": {
+          "maxActiveProducts": 250,
+          "maxPhotosPerProduct": 8,
+          "maxFileSizeMb": 15,
+          "allowVideoStream": true,
+          "maxCustomDomains": 1
+        },
+        "updatedAt": "2026-11-16T21:46:58.614Z"
+      },
+      {
+        "planCode": "Pro Plus",
+        "displayName": "Pro Plus",
+        "tierClassification": "commercial_paid",
+        "lifecycleState": "hidden",
+        "isPubliclyVisible": false,
+        "allowNewSubscriptions": false,
+        "allowUpgradesTo": false,
+        "monthlyDzd": 8900,
+        "annualDzd": 89000,
+        "monthlyUsd": 44,
+        "sortOrder": 3,
+        "entitlements": {
+          "maxActiveProducts": 1000,
+          "maxPhotosPerProduct": 12,
+          "maxFileSizeMb": 25,
+          "allowVideoStream": true,
+          "maxCustomDomains": 3
+        },
+        "updatedAt": "2026-11-16T21:46:58.614Z"
+      },
+      {
+        "planCode": "Premium",
+        "displayName": "Premium",
+        "tierClassification": "commercial_paid",
+        "lifecycleState": "hidden",
+        "isPubliclyVisible": false,
+        "allowNewSubscriptions": false,
+        "allowUpgradesTo": false,
+        "monthlyDzd": 14900,
+        "annualDzd": 149000,
+        "monthlyUsd": 74,
+        "sortOrder": 4,
+        "entitlements": {
+          "maxActiveProducts": 5000,
+          "maxPhotosPerProduct": 15,
+          "maxFileSizeMb": 50,
+          "allowVideoStream": true,
+          "maxCustomDomains": 10
+        },
+        "updatedAt": "2026-11-16T21:46:58.614Z"
+      },
+      {
+        "planCode": "Premium Plus",
+        "displayName": "Premium Plus",
+        "tierClassification": "commercial_paid",
+        "lifecycleState": "hidden",
+        "isPubliclyVisible": false,
+        "allowNewSubscriptions": false,
+        "allowUpgradesTo": false,
+        "monthlyDzd": 24900,
+        "annualDzd": 249000,
+        "monthlyUsd": 129,
+        "sortOrder": 5,
+        "entitlements": {
+          "maxActiveProducts": null,
+          "maxPhotosPerProduct": 20,
+          "maxFileSizeMb": 100,
+          "allowVideoStream": true,
+          "maxCustomDomains": null
+        },
+        "updatedAt": "2026-11-16T21:46:58.614Z"
+      }
+    ],
+    "migrationPolicies": [],
+    "merchantSubscriptions": {},
+    "updatedAt": "2026-11-16T21:46:58.614Z"
+  },
+  "clusterFencingState": {
+    "primaryEpoch": 14,
+    "fencingStatus": "ACTIVE_PRIMARY",
+    "activePrimaryNode": "node-alg-01 (Ryzen 9 / 128GB ECC / NVMe RAID-10)",
+    "activeRegionCode": "dz-algiers-1",
+    "standbyNode": "node-fra-01 (Frankfurt Warm Standby)",
+    "standbyRegionCode": "eu-fra-01",
+    "standbyMode": "warm_standby",
+    "lastStonithAttestation": null,
+    "fencedNodes": [],
+    "lastLeaseRenewedAt": "2026-11-16T21:46:58.614Z",
+    "lastFailoverDrillAt": null,
+    "lastFailoverRtoMs": null
+  },
+  "stockNotifyRequests": [
+    {
+      "id": "notify_req_1794945151996_ec36t",
+      "storeId": "store_6",
+      "storeName": "Oran Tech Express",
+      "productId": "p_6_2",
+      "productName": "Smartphone Flagship DZ Pro - Tensor G3",
+      "productImage": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&auto=format&fit=crop&q=80",
+      "variantId": "v_6_2_3",
+      "variantLabel": "16 GB / 512 GB (Out of stock)",
+      "requesterIpKeys": [
+        "ip_6554b0953edfcad67e4a5d6c"
+      ],
+      "requestCount": 1,
+      "createdAt": "2026-11-17T19:52:31.996Z",
+      "lastRequestedAt": "2026-11-17T19:52:31.996Z",
+      "status": "resolved",
+      "resolvedAt": "2026-11-17T19:53:36.198Z"
+    }
+  ],
+  "analyticsEvents": [
+    {
+      "eventId": "evt_6bb17e5f-672c-4516-87d4-018e5d147052",
+      "storeId": "store_2",
+      "productId": null,
+      "eventType": "visit",
+      "visitorHash": "ccf1e9bdc3659daf7cfac4d8f530121c1ac320d57594624e6fc13189a3e11951",
+      "sessionBucket": 997280,
+      "dedupKey": "95716c02d061de04e4b1da3d8bda6a8f3b968bfb7246dd2cbd1f6c5e270408a3",
+      "occurredAt": "2026-11-19T16:05:30.262Z"
+    },
+    {
+      "eventId": "evt_6a6b70c0-000a-43d2-89bd-76ca02ece8c1",
+      "storeId": "store_merchant_1794941055711",
+      "productId": "p-headphones",
+      "eventType": "product_click",
+      "visitorHash": "9ccc23791f273923b10377408d8d40cb291f963324ffe078d604c14e70264847",
+      "sessionBucket": 997284,
+      "dedupKey": "e919c076a672fafd2c3da4c702445692a7f4129a3d30704abc5800771a333526",
+      "occurredAt": "2026-11-19T18:08:40.466Z"
+    }
+  ],
+  "storeReports": [
+    {
+      "id": "RPT-1001",
+      "storeId": "store_2",
+      "storeName": "La Maison du Caftan d'Alger",
+      "storeSlug": "maison-caftan-alger",
+      "storeLogo": "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=150&auto=format&fit=crop&q=80",
+      "storeWilaya": "Algiers",
+      "primaryReason": "Harassment",
+      "additionalDetails": "",
+      "status": "new",
+      "priority": "medium",
+      "createdAt": "2026-11-19T16:05:51.823Z",
+      "updatedAt": "2026-11-19T16:05:51.823Z",
+      "reporterKey": "dsd014@hotmail.com",
+      "internalNotes": [],
+      "investigationHistory": [
+        {
+          "id": "hist_1795104351823",
+          "action": "Report Submitted",
+          "actorName": "YUME Safety System",
+          "timestamp": "2026-11-19T16:05:51.823Z",
+          "details": "Report received under category: Harassment"
+        }
+      ]
+    }
+  ],
+  "partnerPicksConfig": {
+    "id": "global",
+    "featureEnabled": true,
+    "maxSimultaneousPartnerStores": 2,
+    "defaultRotationMode": "REFRESH_BASED",
+    "timedRotationEnabled": false,
+    "timedRotationIntervalSeconds": 30,
+    "channels": {
+      "STORE_BANNER": {
+        "channelId": "STORE_BANNER",
+        "enabled": true,
+        "maxDisplayedProducts": 1,
+        "spatialPlacementRules": {
+          "allowedBannerSlotIndices": [
+            1,
+            2
+          ]
+        },
+        "frequencyLimits": {
+          "enabled": true,
+          "minSecondsBetweenAppearances": 0,
+          "maxAppearancesPerSession": 18,
+          "maxAppearancesPerDayPerUser": 45
+        },
+        "rotationOverride": {
+          "useGlobalRotation": true
+        },
+        "visualTokens": {
+          "showPartnerPicksBadge": true,
+          "badgeStyle": "minimal_pill",
+          "showPartnerStoreAttribution": true,
+          "showHostContextAttribution": false,
+          "showDiscountBadge": true,
+          "showStarRating": true,
+          "cardScaleDesktop": "standard",
+          "cardScaleMobile": "compact",
+          "imageAspectRatio": "native"
+        },
+        "fairnessChannelWeight": 1.35
+      },
+      "PRODUCT_GRID": {
+        "channelId": "PRODUCT_GRID",
+        "enabled": true,
+        "maxDisplayedProducts": 2,
+        "spatialPlacementRules": {
+          "minGridRow": 1,
+          "maxGridRow": 4,
+          "maxPartnerCardsPerRow": 1,
+          "gridPageScope": "PAGE_1_ONLY"
+        },
+        "frequencyLimits": {
+          "enabled": true,
+          "minSecondsBetweenAppearances": 0,
+          "maxAppearancesPerSession": 18,
+          "maxAppearancesPerDayPerUser": 45
+        },
+        "rotationOverride": {
+          "useGlobalRotation": true
+        },
+        "visualTokens": {
+          "showPartnerPicksBadge": true,
+          "badgeStyle": "minimal_pill",
+          "showPartnerStoreAttribution": true,
+          "showHostContextAttribution": false,
+          "showDiscountBadge": true,
+          "showStarRating": true,
+          "cardScaleDesktop": "standard",
+          "cardScaleMobile": "standard",
+          "imageAspectRatio": "4:5"
+        },
+        "fairnessChannelWeight": 1.15
+      },
+      "DISCOVER_MORE": {
+        "channelId": "DISCOVER_MORE",
+        "enabled": true,
+        "maxDisplayedProducts": 2,
+        "spatialPlacementRules": {
+          "allowedDiscoverCarouselSlots": [
+            1,
+            3,
+            5
+          ]
+        },
+        "frequencyLimits": {
+          "enabled": true,
+          "minSecondsBetweenAppearances": 0,
+          "maxAppearancesPerSession": 18,
+          "maxAppearancesPerDayPerUser": 45
+        },
+        "rotationOverride": {
+          "useGlobalRotation": true
+        },
+        "visualTokens": {
+          "showPartnerPicksBadge": true,
+          "badgeStyle": "minimal_pill",
+          "showPartnerStoreAttribution": true,
+          "showHostContextAttribution": false,
+          "showDiscountBadge": true,
+          "showStarRating": true,
+          "cardScaleDesktop": "compact",
+          "cardScaleMobile": "compact",
+          "imageAspectRatio": "1:1"
+        },
+        "fairnessChannelWeight": 1
+      },
+      "REELS_FEED": {
+        "channelId": "REELS_FEED",
+        "enabled": true,
+        "maxDisplayedProducts": 2,
+        "sequentialMediaRules": {
+          "allowMidSequenceInsertion": true,
+          "allowSequenceTailInsertion": true
+        },
+        "frequencyLimits": {
+          "enabled": true,
+          "minSecondsBetweenAppearances": 45,
+          "maxAppearancesPerSession": 8,
+          "maxAppearancesPerDayPerUser": 20,
+          "minNativeItemsBeforeFirstInsert": 2,
+          "insertionCadenceNativeItems": 4
+        },
+        "rotationOverride": {
+          "useGlobalRotation": true
+        },
+        "visualTokens": {
+          "showPartnerPicksBadge": true,
+          "badgeStyle": "store_avatar_pill",
+          "showPartnerStoreAttribution": true,
+          "showHostContextAttribution": true,
+          "showDiscountBadge": true,
+          "showStarRating": true,
+          "cardScaleDesktop": "standard",
+          "cardScaleMobile": "standard",
+          "imageAspectRatio": "9:16",
+          "reelsPresentationStrategy": "AUTO_BEST_ASSET"
+        },
+        "fairnessChannelWeight": 1.25
+      },
+      "STORIES": {
+        "channelId": "STORIES",
+        "enabled": true,
+        "maxDisplayedProducts": 1,
+        "sequentialMediaRules": {
+          "requireHostStoriesFeatureEnabled": true,
+          "requireActiveNativeStoryPublished": false,
+          "forbidStandalonePromotionalStoryRing": true,
+          "allowMidSequenceInsertion": true,
+          "allowSequenceTailInsertion": true
+        },
+        "frequencyLimits": {
+          "enabled": true,
+          "minSecondsBetweenAppearances": 60,
+          "maxAppearancesPerSession": 6,
+          "maxAppearancesPerDayPerUser": 15,
+          "minNativeItemsBeforeFirstInsert": 1,
+          "insertionCadenceNativeItems": 2
+        },
+        "rotationOverride": {
+          "useGlobalRotation": true
+        },
+        "visualTokens": {
+          "showPartnerPicksBadge": true,
+          "badgeStyle": "store_avatar_pill",
+          "showPartnerStoreAttribution": true,
+          "showHostContextAttribution": true,
+          "showDiscountBadge": true,
+          "showStarRating": true,
+          "cardScaleDesktop": "standard",
+          "cardScaleMobile": "standard",
+          "imageAspectRatio": "9:16"
+        },
+        "fairnessChannelWeight": 1.2
+      }
+    },
+    "planEntitlements": {
+      "Basic": {
+        "planId": "Basic",
+        "enabled": false,
+        "maxActivePartnerStores": 0,
+        "maxProductsPerPartnership": 0,
+        "allowedChannelsAsSource": {
+          "STORE_BANNER": false,
+          "PRODUCT_GRID": false,
+          "DISCOVER_MORE": false,
+          "REELS_FEED": false,
+          "STORIES": false
+        },
+        "allowedChannelsAsHost": {
+          "STORE_BANNER": false,
+          "PRODUCT_GRID": false,
+          "DISCOVER_MORE": false,
+          "REELS_FEED": false,
+          "STORIES": false
+        },
+        "allowCustomPerPartnerProducts": false
+      },
+      "Pro": {
+        "planId": "Pro",
+        "enabled": false,
+        "maxActivePartnerStores": 0,
+        "maxProductsPerPartnership": 0,
+        "allowedChannelsAsSource": {
+          "STORE_BANNER": false,
+          "PRODUCT_GRID": false,
+          "DISCOVER_MORE": false,
+          "REELS_FEED": false,
+          "STORIES": false
+        },
+        "allowedChannelsAsHost": {
+          "STORE_BANNER": false,
+          "PRODUCT_GRID": false,
+          "DISCOVER_MORE": false,
+          "REELS_FEED": false,
+          "STORIES": false
+        },
+        "allowCustomPerPartnerProducts": false
+      },
+      "Pro Plus": {
+        "planId": "Pro Plus",
+        "enabled": true,
+        "maxActivePartnerStores": 2,
+        "maxProductsPerPartnership": 3,
+        "allowedChannelsAsSource": {
+          "STORE_BANNER": true,
+          "PRODUCT_GRID": true,
+          "DISCOVER_MORE": true,
+          "REELS_FEED": false,
+          "STORIES": false
+        },
+        "allowedChannelsAsHost": {
+          "STORE_BANNER": true,
+          "PRODUCT_GRID": true,
+          "DISCOVER_MORE": true,
+          "REELS_FEED": false,
+          "STORIES": false
+        },
+        "allowCustomPerPartnerProducts": true
+      },
+      "Premium": {
+        "planId": "Premium",
+        "enabled": true,
+        "maxActivePartnerStores": 3,
+        "maxProductsPerPartnership": 5,
+        "allowedChannelsAsSource": {
+          "STORE_BANNER": true,
+          "PRODUCT_GRID": true,
+          "DISCOVER_MORE": true,
+          "REELS_FEED": true,
+          "STORIES": true
+        },
+        "allowedChannelsAsHost": {
+          "STORE_BANNER": true,
+          "PRODUCT_GRID": true,
+          "DISCOVER_MORE": true,
+          "REELS_FEED": true,
+          "STORIES": true
+        },
+        "allowCustomPerPartnerProducts": true
+      },
+      "Premium Plus": {
+        "planId": "Premium Plus",
+        "enabled": true,
+        "maxActivePartnerStores": 5,
+        "maxProductsPerPartnership": 6,
+        "allowedChannelsAsSource": {
+          "STORE_BANNER": true,
+          "PRODUCT_GRID": true,
+          "DISCOVER_MORE": true,
+          "REELS_FEED": true,
+          "STORIES": true
+        },
+        "allowedChannelsAsHost": {
+          "STORE_BANNER": true,
+          "PRODUCT_GRID": true,
+          "DISCOVER_MORE": true,
+          "REELS_FEED": true,
+          "STORIES": true
+        },
+        "allowCustomPerPartnerProducts": true
+      }
+    },
+    "smartFrequency": {
+      "enabled": true,
+      "maxCrossChannelExposuresPerSession": 18,
+      "maxCrossChannelExposuresPerDayPerUser": 45,
+      "sameProductCooldownSeconds": 1200,
+      "samePartnerStoreCooldownSeconds": 300,
+      "recentlyViewedProductSuppressionSeconds": 1800,
+      "userSpecificSkipDecay": {
+        "enabled": true,
+        "rapidSkipThresholdMs": 2500,
+        "perSkipPriorityMultiplier": 0.7,
+        "priorityRecoveryHalfLifeMinutes": 45
+      }
+    },
+    "updatedAt": "2026-11-20T08:03:06.123Z",
+    "updatedByAdminId": "system_seed"
+  },
+  "partnerPicksProfiles": {},
+  "partnerPicksPartnerships": [],
+  "partnerPicksPlacements": [],
+  "partnerPicksExposureLedger": {},
+  "partnerPicksAnalyticsEvents": []
 }

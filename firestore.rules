@@ -228,5 +228,515 @@ service cloud.firestore {
       allow create: if isAdmin() && isValidId(checkpointId);
       allow update, delete: if false;
     }
+
+    // =========================================================================
+    // PARTNER PICKS — RECIPROCAL MERCHANT COLLABORATION SECURITY RULES
+    // (100% independent from paid advertising, campaigns, CPC/CPM, and billing)
+    // =========================================================================
+
+    function isValidPartnerPickChannelId(ch) {
+      return ch is string && ch.size() <= 32 && (
+        ch == 'STORE_BANNER' ||
+        ch == 'PRODUCT_GRID' ||
+        ch == 'DISCOVER_MORE' ||
+        ch == 'REELS_FEED' ||
+        ch == 'STORIES'
+      );
+    }
+
+    function isValidPartnerPicksPartnershipStatus(st) {
+      return st is string && st.size() <= 32 && (
+        st == 'PENDING_REQUEST' ||
+        st == 'ACCEPTED' ||
+        st == 'TERMS_PENDING' ||
+        st == 'PLACEMENT_PENDING' ||
+        st == 'ACTIVE' ||
+        st == 'REJECTED' ||
+        st == 'CANCELLED' ||
+        st == 'EXPIRED' ||
+        st == 'SUSPENDED'
+      );
+    }
+
+    function isValidPlacementLifecycleState(st) {
+      return st is string && st.size() <= 64 && (
+        st == 'PROPOSED_AWAITING_HOST_SELECTION' ||
+        st == 'HOST_SELECTED_AWAITING_FINAL_APPROVAL' ||
+        st == 'APPROVED_LIVE' ||
+        st == 'REJECTED_BY_HOST' ||
+        st == 'REJECTED_BY_PROPOSER' ||
+        st == 'AUTO_PAUSED_OUT_OF_STOCK' ||
+        st == 'PAUSED_OWNER_HIDDEN' ||
+        st == 'PAUSED_OWNER_DISABLED' ||
+        st == 'PAUSED_OWNER_ARCHIVED' ||
+        st == 'INVALIDATED_PRODUCT_REMOVED' ||
+        st == 'SUSPENDED_BY_PLATFORM_ADMIN'
+      );
+    }
+
+    // Validation Blueprint: PartnerPicksGlobalConfig (/partner_picks_config/{configId})
+    function isValidPartnerPicksGlobalConfig(data) {
+      return data.keys().hasAll([
+          'id',
+          'featureEnabled',
+          'maxSimultaneousPartnerStores',
+          'defaultRotationMode',
+          'timedRotationEnabled',
+          'timedRotationIntervalSeconds',
+          'channels',
+          'planEntitlements',
+          'smartFrequency',
+          'updatedAt',
+          'updatedByAdminId'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'featureEnabled',
+          'maxSimultaneousPartnerStores',
+          'defaultRotationMode',
+          'timedRotationEnabled',
+          'timedRotationIntervalSeconds',
+          'channels',
+          'planEntitlements',
+          'smartFrequency',
+          'updatedAt',
+          'updatedByAdminId'
+        ])
+        && isValidId(data.id)
+        && data.featureEnabled is bool
+        && data.maxSimultaneousPartnerStores is int
+        && data.maxSimultaneousPartnerStores >= 1
+        && data.maxSimultaneousPartnerStores <= 10
+        && data.defaultRotationMode is string
+        && data.defaultRotationMode.size() <= 32
+        && (data.defaultRotationMode == 'REFRESH_BASED' || data.defaultRotationMode == 'TIMED_ROTATION')
+        && data.timedRotationEnabled is bool
+        && data.timedRotationIntervalSeconds is int
+        && data.timedRotationIntervalSeconds >= 5
+        && data.timedRotationIntervalSeconds <= 3600
+        && data.channels is map && data.channels.keys().size() <= 10
+        && data.planEntitlements is map && data.planEntitlements.keys().size() <= 10
+        && data.smartFrequency is map && data.smartFrequency.keys().size() <= 15
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 64
+        && data.updatedByAdminId is string && data.updatedByAdminId.size() >= 1 && data.updatedByAdminId.size() <= 128;
+    }
+
+    // Validation Blueprint: MerchantPartnerPicksProfile (/partner_picks_profiles/{storeId})
+    function isValidMerchantPartnerPicksProfile(data) {
+      return data.keys().hasAll([
+          'storeId',
+          'ownerUid',
+          'defaultSharedProductIds',
+          'partnershipProductMode',
+          'customProductIdsByPartnership',
+          'hostChannelConsent',
+          'hostSpatialAllowedSlots',
+          'hostSequentialMediaConsent',
+          'staffPermissions',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'storeId',
+          'ownerUid',
+          'defaultSharedProductIds',
+          'partnershipProductMode',
+          'customProductIdsByPartnership',
+          'hostChannelConsent',
+          'hostSpatialAllowedSlots',
+          'hostSequentialMediaConsent',
+          'staffPermissions',
+          'updatedAt'
+        ])
+        && isValidId(data.storeId)
+        && isValidId(data.ownerUid)
+        && data.defaultSharedProductIds is list && data.defaultSharedProductIds.size() <= 100
+        && (data.defaultSharedProductIds.size() == 0 || (data.defaultSharedProductIds[0] is string && data.defaultSharedProductIds[0].size() <= 128))
+        && data.partnershipProductMode is map && data.partnershipProductMode.keys().size() <= 100
+        && data.customProductIdsByPartnership is map && data.customProductIdsByPartnership.keys().size() <= 100
+        && data.hostChannelConsent is map && data.hostChannelConsent.keys().size() <= 10
+        && data.hostSpatialAllowedSlots is map && data.hostSpatialAllowedSlots.keys().size() <= 10
+        && data.hostSequentialMediaConsent is map && data.hostSequentialMediaConsent.keys().size() <= 10
+        && data.staffPermissions is map && data.staffPermissions.keys().size() <= 10
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 64;
+    }
+
+    // Validation Blueprint: PartnerPicksPartnership (/partner_picks_partnerships/{partnershipId})
+    function isValidPartnerPicksPartnership(data) {
+      return data.keys().hasAll([
+          'id',
+          'storeAId',
+          'storeAName',
+          'storeAOwnerUid',
+          'storeBId',
+          'storeBName',
+          'storeBOwnerUid',
+          'initiatedByStoreId',
+          'status',
+          'agreementTerms',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'storeAId',
+          'storeAName',
+          'storeAOwnerUid',
+          'storeBId',
+          'storeBName',
+          'storeBOwnerUid',
+          'initiatedByStoreId',
+          'status',
+          'requestMessage',
+          'agreementTerms',
+          'activatedAt',
+          'expiresAt',
+          'suspendedByAdminId',
+          'suspendedReason',
+          'previousStatusBeforeSuspension',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.storeAId)
+        && data.storeAName is string && data.storeAName.size() >= 1 && data.storeAName.size() <= 160
+        && isValidId(data.storeAOwnerUid)
+        && isValidId(data.storeBId)
+        && data.storeBName is string && data.storeBName.size() >= 1 && data.storeBName.size() <= 160
+        && isValidId(data.storeBOwnerUid)
+        && data.storeAId != data.storeBId
+        && isValidId(data.initiatedByStoreId)
+        && (data.initiatedByStoreId == data.storeAId || data.initiatedByStoreId == data.storeBId)
+        && isValidPartnerPicksPartnershipStatus(data.status)
+        && (!('requestMessage' in data) || (data.requestMessage is string && data.requestMessage.size() <= 500))
+        && data.agreementTerms is map && data.agreementTerms.keys().size() <= 15
+        && (!('activatedAt' in data) || data.activatedAt == null || (data.activatedAt is string && data.activatedAt.size() <= 64))
+        && (!('expiresAt' in data) || data.expiresAt == null || (data.expiresAt is string && data.expiresAt.size() <= 64))
+        && (!('suspendedByAdminId' in data) || data.suspendedByAdminId == null || (data.suspendedByAdminId is string && data.suspendedByAdminId.size() <= 128))
+        && (!('suspendedReason' in data) || data.suspendedReason == null || (data.suspendedReason is string && data.suspendedReason.size() <= 500))
+        && (!('previousStatusBeforeSuspension' in data) || data.previousStatusBeforeSuspension == null || isValidPartnerPicksPartnershipStatus(data.previousStatusBeforeSuspension))
+        && data.createdAt is string && data.createdAt.size() >= 1 && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 64;
+    }
+
+    // Validation Blueprint: PartnerPickProductPlacement (/partner_picks_placements/{placementId})
+    function isValidPartnerPickProductPlacement(data) {
+      return data.keys().hasAll([
+          'id',
+          'partnershipId',
+          'sourceStoreId',
+          'sourceStoreOwnerUid',
+          'hostStoreId',
+          'hostStoreOwnerUid',
+          'productId',
+          'channelId',
+          'proposedOptions',
+          'proposerFinalApproved',
+          'trafficLight',
+          'lifecycleState',
+          'activityHistory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'partnershipId',
+          'sourceStoreId',
+          'sourceStoreOwnerUid',
+          'hostStoreId',
+          'hostStoreOwnerUid',
+          'productId',
+          'channelId',
+          'proposedOptions',
+          'selectedOptionId',
+          'selectedOption',
+          'hostSelectedAt',
+          'proposerFinalApproved',
+          'proposerFinalApprovedAt',
+          'trafficLight',
+          'lifecycleState',
+          'activityHistory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.partnershipId)
+        && isValidId(data.sourceStoreId)
+        && isValidId(data.sourceStoreOwnerUid)
+        && isValidId(data.hostStoreId)
+        && isValidId(data.hostStoreOwnerUid)
+        && data.sourceStoreId != data.hostStoreId
+        && isValidId(data.productId)
+        && isValidPartnerPickChannelId(data.channelId)
+        && data.proposedOptions is list && data.proposedOptions.size() >= 1 && data.proposedOptions.size() <= 20
+        && (!('selectedOptionId' in data) || data.selectedOptionId == null || isValidId(data.selectedOptionId))
+        && (!('selectedOption' in data) || data.selectedOption == null || (data.selectedOption is map && data.selectedOption.keys().size() <= 12))
+        && (!('hostSelectedAt' in data) || data.hostSelectedAt == null || (data.hostSelectedAt is string && data.hostSelectedAt.size() <= 64))
+        && data.proposerFinalApproved is bool
+        && (!('proposerFinalApprovedAt' in data) || data.proposerFinalApprovedAt == null || (data.proposerFinalApprovedAt is string && data.proposerFinalApprovedAt.size() <= 64))
+        && data.trafficLight is string && data.trafficLight.size() <= 16 && (data.trafficLight == 'GREEN' || data.trafficLight == 'YELLOW' || data.trafficLight == 'RED')
+        && isValidPlacementLifecycleState(data.lifecycleState)
+        && (data.lifecycleState != 'APPROVED_LIVE' || (data.proposerFinalApproved == true && data.selectedOptionId != null && data.trafficLight == 'GREEN'))
+        && data.activityHistory is list && data.activityHistory.size() <= 100
+        && data.createdAt is string && data.createdAt.size() >= 1 && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 64;
+    }
+
+    // Validation Blueprint: PartnerPicksBidirectionalExposureLedger (/partner_picks_exposure_ledger/{partnershipId})
+    function isValidPartnerPicksExposureLedger(data) {
+      return data.keys().hasAll(['partnershipId', 'storeAId', 'storeBId', 'directionAOnB', 'directionBOnA', 'updatedAt'])
+        && data.keys().hasOnly(['partnershipId', 'storeAId', 'storeBId', 'directionAOnB', 'directionBOnA', 'updatedAt'])
+        && isValidId(data.partnershipId)
+        && isValidId(data.storeAId)
+        && isValidId(data.storeBId)
+        && data.storeAId != data.storeBId
+        && data.directionAOnB is map && data.directionAOnB.keys().size() <= 15
+        && data.directionBOnA is map && data.directionBOnA.keys().size() <= 15
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 64;
+    }
+
+    // Validation Blueprint: PartnerPicksChannelAnalyticsEvent (/partner_picks_analytics_events/{eventId})
+    function isValidPartnerPicksAnalyticsEvent(data) {
+      return data.keys().hasAll([
+          'id',
+          'idempotencyKey',
+          'partnershipId',
+          'placementId',
+          'hostStoreId',
+          'sourceStoreId',
+          'channelId',
+          'productId',
+          'eventType',
+          'visitorHash',
+          'rotationEpoch',
+          'timestamp'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'idempotencyKey',
+          'partnershipId',
+          'placementId',
+          'hostStoreId',
+          'sourceStoreId',
+          'channelId',
+          'productId',
+          'eventType',
+          'visitorHash',
+          'rotationEpoch',
+          'exposureDurationMs',
+          'timestamp'
+        ])
+        && isValidId(data.id)
+        && data.idempotencyKey is string && data.idempotencyKey.size() >= 6 && data.idempotencyKey.size() <= 256
+        && isValidId(data.partnershipId)
+        && isValidId(data.placementId)
+        && isValidId(data.hostStoreId)
+        && isValidId(data.sourceStoreId)
+        && data.hostStoreId != data.sourceStoreId
+        && isValidPartnerPickChannelId(data.channelId)
+        && isValidId(data.productId)
+        && data.eventType is string && data.eventType.size() <= 32 && (
+          data.eventType == 'opportunity' ||
+          data.eventType == 'impression' ||
+          data.eventType == 'click' ||
+          data.eventType == 'skip' ||
+          data.eventType == 'original_product_open'
+        )
+        && data.visitorHash is string && data.visitorHash.size() >= 1 && data.visitorHash.size() <= 128
+        && data.rotationEpoch is int && data.rotationEpoch >= 0
+        && (!('exposureDurationMs' in data) || (data.exposureDurationMs is int && data.exposureDurationMs >= 0 && data.exposureDurationMs <= 3600000))
+        && data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 64;
+    }
+
+    // 10. Partner Picks Global Configuration (Public read for active placement resolution, Platform Admin write)
+    match /partner_picks_config/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if resource.data.id == 'global' || isAdmin();
+      allow create: if isAdmin() && isValidId(configId) && incoming().id == configId && isValidPartnerPicksGlobalConfig(incoming());
+      allow update: if isAdmin() && isValidId(configId) && isValidPartnerPicksGlobalConfig(incoming()) && incoming().id == existing().id && (
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'featureEnabled',
+          'maxSimultaneousPartnerStores',
+          'defaultRotationMode',
+          'timedRotationEnabled',
+          'timedRotationIntervalSeconds',
+          'channels',
+          'planEntitlements',
+          'smartFrequency',
+          'updatedAt',
+          'updatedByAdminId'
+        ])
+      );
+      allow delete: if false;
+    }
+
+    // 11. Merchant Partner Picks Profiles (Scoped to Store Owner or Platform Admin)
+    match /partner_picks_profiles/{storeId} {
+      allow get: if isSignedIn() && isValidId(storeId) && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(storeId) && incoming().storeId == storeId && isValidMerchantPartnerPicksProfile(incoming()) && (
+        incoming().ownerUid == request.auth.uid || isAdmin()
+      );
+      allow update: if isSignedIn() && isValidId(storeId) && isValidMerchantPartnerPicksProfile(incoming()) && incoming().storeId == existing().storeId && incoming().ownerUid == existing().ownerUid && (
+        isAdmin() || (
+          existing().ownerUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'defaultSharedProductIds',
+            'partnershipProductMode',
+            'customProductIdsByPartnership',
+            'hostChannelConsent',
+            'hostSpatialAllowedSlots',
+            'hostSequentialMediaConsent',
+            'staffPermissions',
+            'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(storeId);
+    }
+
+    // 12. Partner Picks Reciprocal Partnerships (Bilateral Store A & Store B participants + Platform Admin)
+    match /partner_picks_partnerships/{partnershipId} {
+      allow get: if isValidId(partnershipId) && (
+        resource.data.status == 'ACTIVE' ||
+        (isSignedIn() && (
+          resource.data.storeAOwnerUid == request.auth.uid ||
+          resource.data.storeBOwnerUid == request.auth.uid ||
+          isAdmin()
+        ))
+      );
+      allow list: if resource.data.status == 'ACTIVE' || (
+        isSignedIn() && (
+          resource.data.storeAOwnerUid == request.auth.uid ||
+          resource.data.storeBOwnerUid == request.auth.uid ||
+          isAdmin()
+        )
+      );
+      allow create: if isSignedIn() && isValidId(partnershipId) && incoming().id == partnershipId && isValidPartnerPicksPartnership(incoming()) && (
+        isAdmin() ||
+        (incoming().initiatedByStoreId == incoming().storeAId && incoming().storeAOwnerUid == request.auth.uid && incoming().status == 'PENDING_REQUEST') ||
+        (incoming().initiatedByStoreId == incoming().storeBId && incoming().storeBOwnerUid == request.auth.uid && incoming().status == 'PENDING_REQUEST')
+      );
+      allow update: if isSignedIn() && isValidId(partnershipId) && isValidPartnerPicksPartnership(incoming())
+        && incoming().id == existing().id
+        && incoming().storeAId == existing().storeAId
+        && incoming().storeAOwnerUid == existing().storeAOwnerUid
+        && incoming().storeBId == existing().storeBId
+        && incoming().storeBOwnerUid == existing().storeBOwnerUid
+        && incoming().initiatedByStoreId == existing().initiatedByStoreId
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin() || (
+            existing().status != 'SUSPENDED'
+            && (existing().storeAOwnerUid == request.auth.uid || existing().storeBOwnerUid == request.auth.uid)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status',
+              'agreementTerms',
+              'activatedAt',
+              'expiresAt',
+              'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(partnershipId);
+    }
+
+    // 13. Partner Pick Product Placements (Enforces Two-Sided Approval & 6-State Lifecycle)
+    match /partner_picks_placements/{placementId} {
+      allow get: if isValidId(placementId) && (
+        resource.data.lifecycleState == 'APPROVED_LIVE' ||
+        (isSignedIn() && (
+          resource.data.sourceStoreOwnerUid == request.auth.uid ||
+          resource.data.hostStoreOwnerUid == request.auth.uid ||
+          isAdmin()
+        ))
+      );
+      allow list: if resource.data.lifecycleState == 'APPROVED_LIVE' || (
+        isSignedIn() && (
+          resource.data.sourceStoreOwnerUid == request.auth.uid ||
+          resource.data.hostStoreOwnerUid == request.auth.uid ||
+          isAdmin()
+        )
+      );
+      allow create: if isSignedIn() && isValidId(placementId) && incoming().id == placementId && isValidPartnerPickProductPlacement(incoming()) && (
+        isAdmin() || (
+          incoming().sourceStoreOwnerUid == request.auth.uid
+          && incoming().lifecycleState == 'PROPOSED_AWAITING_HOST_SELECTION'
+          && incoming().proposerFinalApproved == false
+          && incoming().trafficLight == 'YELLOW'
+        )
+      );
+      allow update: if isSignedIn() && isValidId(placementId) && isValidPartnerPickProductPlacement(incoming())
+        && incoming().id == existing().id
+        && incoming().partnershipId == existing().partnershipId
+        && incoming().sourceStoreId == existing().sourceStoreId
+        && incoming().sourceStoreOwnerUid == existing().sourceStoreOwnerUid
+        && incoming().hostStoreId == existing().hostStoreId
+        && incoming().hostStoreOwnerUid == existing().hostStoreOwnerUid
+        && incoming().productId == existing().productId
+        && incoming().channelId == existing().channelId
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin() ||
+          // Action 1: Host Merchant selects from proposed options or rejects proposal
+          (
+            existing().hostStoreOwnerUid == request.auth.uid
+            && existing().lifecycleState != 'SUSPENDED_BY_PLATFORM_ADMIN'
+            && incoming().proposerFinalApproved == false
+            && (
+              incoming().lifecycleState == 'HOST_SELECTED_AWAITING_FINAL_APPROVAL' ||
+              incoming().lifecycleState == 'REJECTED_BY_HOST'
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'selectedOptionId',
+              'selectedOption',
+              'hostSelectedAt',
+              'trafficLight',
+              'lifecycleState',
+              'activityHistory',
+              'updatedAt'
+            ])
+          ) ||
+          // Action 2: Source Merchant gives final approval after host selection, updates proposed options, or pauses/withdraws own product
+          (
+            existing().sourceStoreOwnerUid == request.auth.uid
+            && existing().lifecycleState != 'SUSPENDED_BY_PLATFORM_ADMIN'
+            && (
+              incoming().lifecycleState != 'APPROVED_LIVE' ||
+              existing().lifecycleState == 'HOST_SELECTED_AWAITING_FINAL_APPROVAL' ||
+              existing().lifecycleState == 'AUTO_PAUSED_OUT_OF_STOCK'
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'proposedOptions',
+              'proposerFinalApproved',
+              'proposerFinalApprovedAt',
+              'trafficLight',
+              'lifecycleState',
+              'activityHistory',
+              'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(placementId);
+    }
+
+    // 14. Bidirectional Exposure Ledger (Read by participating stores & Platform Admin, Admin/Server write)
+    match /partner_picks_exposure_ledger/{partnershipId} {
+      allow get: if isSignedIn() && isValidId(partnershipId) && isAdmin();
+      allow list: if isSignedIn() && isAdmin();
+      allow create: if isAdmin() && isValidId(partnershipId) && incoming().partnershipId == partnershipId && isValidPartnerPicksExposureLedger(incoming());
+      allow update: if isAdmin() && isValidId(partnershipId) && isValidPartnerPicksExposureLedger(incoming())
+        && incoming().partnershipId == existing().partnershipId
+        && incoming().storeAId == existing().storeAId
+        && incoming().storeBId == existing().storeBId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['directionAOnB', 'directionBOnA', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 15. Partner Picks Per-Channel Analytics Events (Append-only idempotent telemetry, zero update/delete)
+    match /partner_picks_analytics_events/{eventId} {
+      allow get: if isAdmin() && isValidId(eventId);
+      allow list: if isAdmin() && resource.data.id >= '';
+      allow create: if isValidId(eventId) && incoming().id == eventId && isValidPartnerPicksAnalyticsEvent(incoming());
+      allow update, delete: if false;
+    }
   }
 }

@@ -127,6 +127,7 @@ export const PLATFORM_ADMIN_ROLES: Record<string, AdminRoleDefinition> = {
       products: ["view", "create", "edit", "approve", "suspend", "delete"],
       categories: ["view", "create", "edit", "approve", "suspend", "delete"],
       brands: ["view", "create", "edit", "approve", "suspend", "delete"],
+      brand_identity: ["view", "create", "edit", "approve", "suspend", "delete"],
       cover_templates: ["view", "create", "edit", "approve", "suspend", "delete"],
       orders: ["view", "create", "edit", "approve", "suspend", "delete"],
       reviews: ["view", "create", "edit", "approve", "suspend", "delete"],

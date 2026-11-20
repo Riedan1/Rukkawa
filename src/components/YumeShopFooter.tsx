@@ -236,8 +236,8 @@ export const YumeShopFooter: React.FC<YumeShopFooterProps> = ({
 
   const effectiveButtonColor =
     buttonColor ||
-    `var(--yume-theme-header-color, ${currentSlideColor || "#4a0a26"})`;
-  const rawAccentHex = buttonColor || currentSlideColor || "#4a0a26";
+    `var(--yume-theme-footer-color, var(--yume-theme-header-color, ${currentSlideColor || "#4D4040"}))`;
+  const rawAccentHex = buttonColor || currentSlideColor || "#4D4040";
 
   const handleBackToTop = () => {
     if (scrollContainerId) {

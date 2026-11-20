@@ -2552,6 +2552,28 @@ export function computeIpRateLimitKey(req: Request): string {
   return crypto.createHash("sha256").update(`rl:${salt}:${rawIp}`).digest("hex").slice(0, 24);
 }
 
+export function extractNormalizedClientIp(req: Request): string {
+  const forwarded = String(req.headers["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim();
+  const rawIp = forwarded || String(req.ip || req.socket?.remoteAddress || "unknown").trim();
+  if (rawIp === "::1") return "127.0.0.1";
+  if (rawIp.startsWith("::ffff:")) return rawIp.slice(7);
+  return rawIp || "unknown";
+}
+
+export function computePersistentStockNotifyIpKey(req: Request): string {
+  const normalizedIp = extractNormalizedClientIp(req);
+  return (
+    "ip_" +
+    crypto
+      .createHmac("sha256", getSessionHmacSecret())
+      .update(`stock_notify_ip:${normalizedIp}`)
+      .digest("hex")
+      .slice(0, 24)
+  );
+}
+
 export function evaluateServerBotSignals(req: Request): {
   isBot: boolean;
   reason?: string;

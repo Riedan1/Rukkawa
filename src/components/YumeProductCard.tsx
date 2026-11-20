@@ -23,6 +23,13 @@ interface YumeProductCardProps {
   comparedProducts?: Product[];
   onToggleCompare?: (product: Product) => void;
   hideStockLeftBadge?: boolean;
+  partnerPickMeta?: {
+    sourceStoreId: string;
+    sourceStoreName: string;
+    placementId: string;
+    partnershipId: string;
+    onOpenOriginalProduct?: () => void;
+  };
 }
 
 export default function YumeProductCard({
@@ -39,6 +46,7 @@ export default function YumeProductCard({
   comparedProducts = [],
   onToggleCompare,
   hideStockLeftBadge = false,
+  partnerPickMeta,
 }: YumeProductCardProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
@@ -216,6 +224,10 @@ export default function YumeProductCard({
   const activeDotColor = storefrontAccentColor;
 
   const handleOpenSellProduct = () => {
+    if (partnerPickMeta?.onOpenOriginalProduct) {
+      partnerPickMeta.onOpenOriginalProduct();
+      return;
+    }
     if (selectedStore && setSelectedStore) {
       setSelectedStore(selectedStore);
     }
@@ -225,6 +237,8 @@ export default function YumeProductCard({
   return (
     <div
       id={`yume-prod-${prod.id}`}
+      data-partner-pick={partnerPickMeta ? "true" : undefined}
+      data-partner-source-store={partnerPickMeta?.sourceStoreId}
       className="product-card-container w-full flex flex-col gap-2 relative bg-transparent border-0 p-1.5 sm:p-2 select-none group/card text-left will-change-transform cursor-pointer h-full"
       onClick={handleOpenSellProduct}
       onMouseEnter={() => setIsHovered(true)}
@@ -234,20 +248,31 @@ export default function YumeProductCard({
       <div className={`aspect-[4/5] w-full rounded-[16px] overflow-hidden bg-stone-100 dark:bg-slate-900 relative shadow-sm border transition-colors duration-200 group/img cursor-pointer group-hover/card:border-stone-300/60 dark:group-hover/card:border-slate-700/60 ${
         hasWishlist 
           ? "border-rose-500/80 shadow-[0_0_15px_rgba(244,63,94,0.2)] ring-2 ring-rose-500/25" 
+          : partnerPickMeta
+          ? "border-emerald-500/50 dark:border-emerald-500/40 ring-1 ring-emerald-500/20"
           : "border-stone-150/40 dark:border-slate-800/60"
       }`}>
 
-        {/* Compact rounded pill discount badge inside product image at top-left corner */}
-        {hasDiscount && (
-          <div
-            className="absolute top-2.5 left-2.5 z-20 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black text-white shadow-xs select-none tracking-tight flex items-center justify-center pointer-events-none transition-colors duration-300 leading-none"
-            style={{
-              backgroundColor: activeDotColor,
-            }}
-          >
-            {autoDiscountPercent}% off
-          </div>
-        )}
+        {/* Compact rounded pill discount badge or Partner Pick badge inside product image at top-left corner */}
+        <div className="absolute top-2.5 left-2.5 z-20 flex flex-col items-start gap-1 pointer-events-none">
+          {partnerPickMeta && (
+            <div className="px-2 py-0.5 rounded-md text-[9.5px] font-black text-white bg-emerald-600/95 backdrop-blur-xs shadow-xs select-none tracking-tight flex items-center gap-1 leading-none border border-white/20">
+              <span>Partner Pick</span>
+              <span className="opacity-75">•</span>
+              <span className="truncate max-w-[110px]">{partnerPickMeta.sourceStoreName}</span>
+            </div>
+          )}
+          {hasDiscount && (
+            <div
+              className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black text-white shadow-xs select-none tracking-tight flex items-center justify-center transition-colors duration-300 leading-none"
+              style={{
+                backgroundColor: activeDotColor,
+              }}
+            >
+              {autoDiscountPercent}% off
+            </div>
+          )}
+        </div>
         
         {/* Wishlist Saved Product Logo / Bookmark layer */}
         <button

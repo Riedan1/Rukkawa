@@ -36,7 +36,26 @@ import {
   setVisitorTokenCookie,
   evaluateServerBotSignals,
   computeIpRateLimitKey,
+  computePersistentStockNotifyIpKey,
 } from "./server/securityGovernance";
+import {
+  normalizeStockNotifyRequests,
+  recordStockNotifyWithResult,
+  resolveStockNotifyRequests,
+} from "./src/utils/stockNotifyAlerts";
+import {
+  verifyStrictStoreOwnership,
+  normalizeStoreDockSettings,
+  sanitizePublicStoreForVisitor,
+  isPublicStoreNavigationTabAllowed,
+  isStoreCurrentlyMuted,
+  createStoreReportSubmission,
+  computeReportsCenterKpis,
+  applyAdminReportUpdate,
+  type StoreReportRecord,
+  type UserStoreMuteRecord,
+  type UserStoreBlockRecord,
+} from "./src/utils/storeMoreOptionsLogic";
 import {
   ingestStoreAnalyticsEventTransactional,
   queryAdminStoresPerformance,
@@ -77,6 +96,7 @@ import {
   computeNonOversubscribedQosBudget,
 } from "./server/db/portableClusterConfig";
 import { verifyMigrationReconciliation } from "./server/db/migrateLegacyJson";
+import { registerPartnerPicksRoutes } from "./server/partnerPicksRoutes";
 
 const PORT = 3000;
 
@@ -1179,6 +1199,35 @@ export async function createYumeApp(options?: { skipVite?: boolean }) {
     res.json({ governance: db.governanceState });
   });
 
+  // Centralized Brand Identity & Color Management Public Read + Admin Publish Endpoints
+  app.get("/api/brand-identity", async (_req, res) => {
+    const db = await loadDatabase();
+    const gov = (db.governanceState || {}) as Record<string, any>;
+    res.json({
+      ok: true,
+      publishedConfig: gov.brandIdentityPublished || null,
+      previousConfig: gov.brandIdentityPrevious || null,
+    });
+  });
+
+  app.put("/api/brand-identity", async (req, res) => {
+    const db = await loadDatabase();
+    const { publishedConfig, previousConfig } = req.body || {};
+    const nextGov: Record<string, any> = {
+      ...(db.governanceState || {}),
+      ...(publishedConfig ? { brandIdentityPublished: publishedConfig } : {}),
+      ...(previousConfig !== undefined ? { brandIdentityPrevious: previousConfig } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+    db.governanceState = nextGov;
+    await saveDatabase(db);
+    res.json({
+      ok: true,
+      publishedConfig: nextGov.brandIdentityPublished || null,
+      previousConfig: nextGov.brandIdentityPrevious || null,
+    });
+  });
+
   // Centralized Dynamic Subscription Governance & Pricing Control (Launch Default: FREE_ONLY)
   app.get("/api/subscriptions/public-catalog", async (_req, res) => {
     const db = await loadDatabase();
@@ -2146,6 +2195,624 @@ Return JSON with keys: description_en, description_fr, description_ar, tags (arr
       sections: [],
     });
   });
+
+  // ============================================================================
+  // 5B. PER-IP STOCK NOTIFY REQUESTS API (/api/stock-notify/*)
+  // ============================================================================
+  app.get("/api/stock-notify/ip-key", (req, res) => {
+    const ipKey = computePersistentStockNotifyIpKey(req);
+    res.json({ ok: true, ipKey });
+  });
+
+  app.get("/api/stock-notify/requests", async (req, res) => {
+    try {
+      const ipKey = computePersistentStockNotifyIpKey(req);
+      const db = await loadDatabase();
+      const requests = normalizeStockNotifyRequests(db.stockNotifyRequests || []);
+      res.json({ ok: true, ipKey, requests });
+    } catch {
+      res.status(500).json({ ok: false, error: "FAILED_TO_LOAD_STOCK_NOTIFY" });
+    }
+  });
+
+  app.post("/api/stock-notify/request", async (req, res) => {
+    try {
+      const ipKey = computePersistentStockNotifyIpKey(req);
+      const body = req.body || {};
+      const storeId = String(body.storeId || "").trim();
+      const productId = String(body.productId || "").trim();
+      const productName = String(body.productName || "").trim();
+
+      if (!storeId || (!productId && !productName)) {
+        return res.status(400).json({ ok: false, error: "MISSING_PRODUCT_OR_STORE" });
+      }
+
+      const db = await loadDatabase();
+      const current = normalizeStockNotifyRequests(db.stockNotifyRequests || []);
+      const result = recordStockNotifyWithResult(current, {
+        storeId,
+        storeName: String(body.storeName || "Store").trim(),
+        productId,
+        productName,
+        productImage: body.productImage ? String(body.productImage) : undefined,
+        variantId: body.variantId ? String(body.variantId) : undefined,
+        variantLabel: body.variantLabel ? String(body.variantLabel) : undefined,
+        requesterIpKey: ipKey,
+      });
+
+      db.stockNotifyRequests = result.nextList;
+      await saveDatabase(db);
+
+      res.json({
+        ok: true,
+        ipKey,
+        alreadyRequested: result.alreadyRequestedByIp,
+        recorded: result.recorded,
+        requests: result.nextList,
+      });
+    } catch {
+      res.status(500).json({ ok: false, error: "FAILED_TO_RECORD_STOCK_NOTIFY" });
+    }
+  });
+
+  app.post("/api/stock-notify/resolve", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const db = await loadDatabase();
+      const current = normalizeStockNotifyRequests(db.stockNotifyRequests || []);
+      const updated = resolveStockNotifyRequests(current, {
+        id: body.id ? String(body.id) : undefined,
+        storeId: body.storeId ? String(body.storeId) : undefined,
+        productId: body.productId ? String(body.productId) : undefined,
+        variantId: body.variantId ? String(body.variantId) : undefined,
+        nextStatus: body.nextStatus === "dismissed" ? "dismissed" : "resolved",
+      });
+      db.stockNotifyRequests = updated;
+      await saveDatabase(db);
+      res.json({ ok: true, requests: updated });
+    } catch {
+      res.status(500).json({ ok: false, error: "FAILED_TO_RESOLVE_STOCK_NOTIFY" });
+    }
+  });
+
+  // ============================================================================
+  // 5C. STORE DOCK SETTINGS (STRICT OWNER-ONLY), PUBLIC VISIBILITY, MUTES,
+  //     BLOCKS, STORE REPORTS & CENTRALIZED PLATFORM ADMIN REPORTS CENTER
+  // ============================================================================
+  function extractRequestUserContext(req: express.Request) {
+    const bodyUser = req.body?.user && typeof req.body.user === "object" ? req.body.user : null;
+    const id = String(
+      req.headers["x-yume-user-id"] || bodyUser?.id || req.query?.userId || ""
+    ).trim();
+    const email = String(
+      req.headers["x-yume-user-email"] || bodyUser?.email || req.query?.userEmail || ""
+    )
+      .trim()
+      .toLowerCase();
+    const role = String(
+      req.headers["x-yume-user-role"] || bodyUser?.role || ""
+    ).trim();
+    const storeName = String(
+      req.headers["x-yume-user-store-name"] || bodyUser?.storeName || ""
+    ).trim();
+    const activeStaffMemberId = String(
+      req.headers["x-yume-active-staff-id"] || req.body?.activeStaffMemberId || ""
+    ).trim() || null;
+
+    let ownedStoreIds: string[] = [];
+    const headerOwned = req.headers["x-yume-owned-store-ids"];
+    if (typeof headerOwned === "string" && headerOwned.trim()) {
+      ownedStoreIds = headerOwned
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (Array.isArray(bodyUser?.ownedStoreIds)) {
+      ownedStoreIds = bodyUser.ownedStoreIds.map((s: any) => String(s));
+    }
+
+    if (!id && !email) {
+      return { user: null, activeStaffMemberId };
+    }
+
+    return {
+      user: {
+        id: id || email,
+        email,
+        role: role || "Customer",
+        storeName: storeName || undefined,
+        ownedStoreIds,
+      },
+      activeStaffMemberId,
+    };
+  }
+
+  // Strict Owner-Only Read of Protected Dock Settings Configuration
+  app.get("/api/stores/:storeId/dock-settings", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const db = await loadDatabase();
+      const existingStore = (db.stores || []).find((s: any) => s && String(s.id) === storeId);
+      const targetStore = existingStore || {
+        id: storeId,
+        name: String(req.headers["x-target-store-name"] || storeId),
+      };
+      const { user, activeStaffMemberId } = extractRequestUserContext(req);
+      const ownership = verifyStrictStoreOwnership({
+        user,
+        targetStore,
+        activeStaffMemberId,
+      });
+      if (!ownership.allowed) {
+        return res.status(ownership.statusCode).json({
+          ok: false,
+          code: "STRICT_OWNER_ONLY",
+          error: ownership.reason,
+        });
+      }
+      const dockSettings = normalizeStoreDockSettings(existingStore?.designSettings?.dockSettings);
+      return res.json({ ok: true, storeId, dockSettings });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_READ_DOCK_SETTINGS" });
+    }
+  });
+
+  // Strict Owner-Only Update of Dock Settings (Affects Public Store Profile)
+  app.put("/api/stores/:storeId/dock-settings", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const db = await loadDatabase();
+      const storesList = Array.isArray(db.stores) ? db.stores : [];
+      const storeIndex = storesList.findIndex((s: any) => s && String(s.id) === storeId);
+
+      const { user, activeStaffMemberId } = extractRequestUserContext(req);
+      const fallbackStore =
+        storeIndex >= 0
+          ? storesList[storeIndex]
+          : req.body?.storeSnapshot && String(req.body.storeSnapshot.id) === storeId
+          ? req.body.storeSnapshot
+          : {
+              id: storeId,
+              name: String(req.body?.storeName || req.headers["x-target-store-name"] || storeId),
+            };
+
+      const ownership = verifyStrictStoreOwnership({
+        user,
+        targetStore: fallbackStore,
+        activeStaffMemberId,
+      });
+
+      if (!ownership.allowed) {
+        return res.status(ownership.statusCode).json({
+          ok: false,
+          code: "STRICT_OWNER_ONLY",
+          error: ownership.reason,
+        });
+      }
+
+      const incomingSettings = req.body?.dockSettings || req.body || {};
+      const normalized = normalizeStoreDockSettings({
+        ...incomingSettings,
+        updatedAt: new Date().toISOString(),
+        updatedByOwnerEmail: user?.email || undefined,
+      });
+
+      const updatedStore = {
+        ...fallbackStore,
+        designSettings: {
+          ...(fallbackStore.designSettings || {}),
+          dockSettings: normalized,
+        },
+      };
+
+      if (storeIndex >= 0) {
+        storesList[storeIndex] = updatedStore;
+      } else {
+        storesList.push(updatedStore);
+      }
+      db.stores = storesList;
+      await saveDatabase(db);
+
+      return res.json({
+        ok: true,
+        storeId,
+        dockSettings: normalized,
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_SAVE_DOCK_SETTINGS" });
+    }
+  });
+
+  // Public Store Profile Endpoint with Server-Side Visibility & Privacy Enforcement
+  app.get("/api/stores/:storeId/public-profile", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const db = await loadDatabase();
+      const targetStore = (db.stores || []).find((s: any) => s && String(s.id) === storeId);
+      if (!targetStore) {
+        return res.status(404).json({ ok: false, error: "STORE_NOT_FOUND" });
+      }
+      const { user, activeStaffMemberId } = extractRequestUserContext(req);
+      const ownership = verifyStrictStoreOwnership({
+        user,
+        targetStore,
+        activeStaffMemberId,
+      });
+      const sanitized = sanitizePublicStoreForVisitor(targetStore, ownership.allowed);
+      return res.json({
+        ok: true,
+        isStrictOwner: ownership.allowed,
+        store: sanitized,
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_LOAD_PUBLIC_PROFILE" });
+    }
+  });
+
+  // Server-Side Public Navigation Tab Guard (Blocks Direct Route / API Scraping of Disabled Tabs)
+  app.get("/api/stores/:storeId/public-tab/:tabId", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const tabId = String(req.params.tabId || "products").trim().toLowerCase();
+      const db = await loadDatabase();
+      const targetStore = (db.stores || []).find((s: any) => s && String(s.id) === storeId);
+      if (!targetStore) {
+        return res.status(404).json({ ok: false, error: "STORE_NOT_FOUND" });
+      }
+      const dockSettings = normalizeStoreDockSettings(targetStore.designSettings?.dockSettings);
+      const allowed = isPublicStoreNavigationTabAllowed(tabId, dockSettings);
+      if (!allowed) {
+        return res.status(403).json({
+          ok: false,
+          code: "TAB_DISABLED_BY_STORE_OWNER",
+          error: `The '${tabId}' section is disabled on this store's public profile.`,
+          redirectTab: "products",
+        });
+      }
+      return res.json({
+        ok: true,
+        storeId,
+        tabId,
+        allowed: true,
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_CHECK_PUBLIC_TAB" });
+    }
+  });
+
+  // Registered User Mute & Block Preferences (Account-Synced Across Devices & Sessions)
+  app.get("/api/user/store-preferences", async (req, res) => {
+    try {
+      const { user } = extractRequestUserContext(req);
+      if (!user || (!user.email && !user.id)) {
+        return res.json({
+          ok: true,
+          authenticated: false,
+          mutes: [],
+          blocks: [],
+        });
+      }
+      const userKey = (user.email || user.id).toLowerCase();
+      const db = await loadDatabase();
+      const allMutes = db.userStoreMutes || {};
+      const allBlocks = db.userStoreBlocks || {};
+      const nowMs = Date.now();
+
+      const rawUserMutes: UserStoreMuteRecord[] = Array.isArray(allMutes[userKey])
+        ? allMutes[userKey]
+        : [];
+      const activeUserMutes = rawUserMutes.filter((m) => isStoreCurrentlyMuted(m, nowMs));
+
+      if (activeUserMutes.length !== rawUserMutes.length) {
+        allMutes[userKey] = activeUserMutes;
+        db.userStoreMutes = allMutes;
+        await saveDatabase(db);
+      }
+
+      const userBlocks: UserStoreBlockRecord[] = Array.isArray(allBlocks[userKey])
+        ? allBlocks[userKey]
+        : [];
+
+      return res.json({
+        ok: true,
+        authenticated: true,
+        mutes: activeUserMutes,
+        blocks: userBlocks,
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_LOAD_STORE_PREFERENCES" });
+    }
+  });
+
+  app.put("/api/user/store-mutes/:storeId", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const { user } = extractRequestUserContext(req);
+      if (!user || (!user.email && !user.id)) {
+        return res.status(401).json({
+          ok: false,
+          code: "GUEST_LOCAL_ONLY",
+          error: "Guest mute preferences are stored locally in the browser.",
+        });
+      }
+      const userKey = (user.email || user.id).toLowerCase();
+      const db = await loadDatabase();
+      const allMutes = db.userStoreMutes || {};
+      const existing: UserStoreMuteRecord[] = Array.isArray(allMutes[userKey])
+        ? allMutes[userKey]
+        : [];
+
+      const record: UserStoreMuteRecord = {
+        storeId,
+        mutedAt: new Date().toISOString(),
+        expiresAt: req.body?.expiresAt ?? null,
+        presetId: req.body?.presetId || "1h",
+        durationLabel: String(req.body?.durationLabel || "Muted"),
+      };
+
+      const nextList = [
+        record,
+        ...existing.filter((m) => m && m.storeId !== storeId && isStoreCurrentlyMuted(m)),
+      ];
+      allMutes[userKey] = nextList;
+      db.userStoreMutes = allMutes;
+      await saveDatabase(db);
+
+      return res.json({ ok: true, mute: record, mutes: nextList });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_SAVE_MUTE_PREFERENCE" });
+    }
+  });
+
+  app.delete("/api/user/store-mutes/:storeId", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const { user } = extractRequestUserContext(req);
+      if (!user || (!user.email && !user.id)) {
+        return res.status(401).json({ ok: false, code: "GUEST_LOCAL_ONLY" });
+      }
+      const userKey = (user.email || user.id).toLowerCase();
+      const db = await loadDatabase();
+      const allMutes = db.userStoreMutes || {};
+      const existing: UserStoreMuteRecord[] = Array.isArray(allMutes[userKey])
+        ? allMutes[userKey]
+        : [];
+      const nextList = existing.filter((m) => m && m.storeId !== storeId);
+      allMutes[userKey] = nextList;
+      db.userStoreMutes = allMutes;
+      await saveDatabase(db);
+      return res.json({ ok: true, mutes: nextList });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_REMOVE_MUTE_PREFERENCE" });
+    }
+  });
+
+  app.put("/api/user/store-blocks/:storeId", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const { user, activeStaffMemberId } = extractRequestUserContext(req);
+      if (!user || (!user.email && !user.id)) {
+        return res.status(401).json({
+          ok: false,
+          code: "GUEST_LOCAL_ONLY",
+          error: "Guest block preferences are stored locally in the browser.",
+        });
+      }
+      const db = await loadDatabase();
+      const targetStore = (db.stores || []).find((s: any) => s && String(s.id) === storeId);
+      if (targetStore) {
+        const ownership = verifyStrictStoreOwnership({
+          user,
+          targetStore,
+          activeStaffMemberId,
+        });
+        if (ownership.allowed) {
+          return res.status(400).json({
+            ok: false,
+            code: "CANNOT_BLOCK_OWN_STORE",
+            error: "Store owners cannot block their own store.",
+          });
+        }
+      }
+
+      const userKey = (user.email || user.id).toLowerCase();
+      const allBlocks = db.userStoreBlocks || {};
+      const existing: UserStoreBlockRecord[] = Array.isArray(allBlocks[userKey])
+        ? allBlocks[userKey]
+        : [];
+      const record: UserStoreBlockRecord = {
+        storeId,
+        blockedAt: new Date().toISOString(),
+      };
+      const nextList = [record, ...existing.filter((b) => b && b.storeId !== storeId)];
+      allBlocks[userKey] = nextList;
+      db.userStoreBlocks = allBlocks;
+      await saveDatabase(db);
+      return res.json({ ok: true, block: record, blocks: nextList });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_BLOCK_STORE" });
+    }
+  });
+
+  app.delete("/api/user/store-blocks/:storeId", async (req, res) => {
+    try {
+      const storeId = String(req.params.storeId || "").trim();
+      const { user } = extractRequestUserContext(req);
+      if (!user || (!user.email && !user.id)) {
+        return res.status(401).json({ ok: false, code: "GUEST_LOCAL_ONLY" });
+      }
+      const userKey = (user.email || user.id).toLowerCase();
+      const db = await loadDatabase();
+      const allBlocks = db.userStoreBlocks || {};
+      const existing: UserStoreBlockRecord[] = Array.isArray(allBlocks[userKey])
+        ? allBlocks[userKey]
+        : [];
+      const nextList = existing.filter((b) => b && b.storeId !== storeId);
+      allBlocks[userKey] = nextList;
+      db.userStoreBlocks = allBlocks;
+      await saveDatabase(db);
+      return res.json({ ok: true, blocks: nextList });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_UNBLOCK_STORE" });
+    }
+  });
+
+  // Report Store Submission (Protects Reporter Identity & Blocks Duplicate Spam)
+  app.post("/api/store-reports", async (req, res) => {
+    try {
+      const db = await loadDatabase();
+      const existingReports: StoreReportRecord[] = Array.isArray(db.storeReports)
+        ? db.storeReports
+        : [];
+      const { user, activeStaffMemberId } = extractRequestUserContext(req);
+      const ipKey = computePersistentStockNotifyIpKey(req);
+      const reporterKey = user?.email || user?.id || ipKey;
+
+      const storeId = String(req.body?.storeId || "").trim();
+      const targetStore = (db.stores || []).find((s: any) => s && String(s.id) === storeId);
+      const isReporterOwner = targetStore
+        ? verifyStrictStoreOwnership({ user, targetStore, activeStaffMemberId }).allowed
+        : false;
+
+      const submission = createStoreReportSubmission({
+        existingReports,
+        storeId,
+        storeName: String(req.body?.storeName || targetStore?.name || "").trim(),
+        storeSlug: String(req.body?.storeSlug || targetStore?.slug || "").trim() || undefined,
+        storeLogo: String(req.body?.storeLogo || targetStore?.logo || "").trim() || undefined,
+        storeWilaya: String(req.body?.storeWilaya || targetStore?.wilaya || "").trim() || undefined,
+        primaryReason: req.body?.primaryReason,
+        additionalDetails: req.body?.additionalDetails,
+        reporterKey,
+        isReporterOwnerOfTargetStore: isReporterOwner,
+      });
+
+      if (!submission.ok || !submission.report) {
+        return res.status(submission.statusCode).json({
+          ok: false,
+          error: submission.error,
+        });
+      }
+
+      db.storeReports = submission.nextReports;
+      await saveDatabase(db);
+
+      // Strip internal reporterKey from the response payload
+      const { reporterKey: _rk, ...safeReport } = submission.report;
+      return res.status(201).json({
+        ok: true,
+        report: safeReport,
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_SUBMIT_STORE_REPORT" });
+    }
+  });
+
+  // Centralized Platform Admin Reports Center Endpoints (No Assignment Workflows)
+  app.get("/api/admin/store-reports", async (req, res) => {
+    try {
+      const db = await loadDatabase();
+      const auth = authorizeAdminRequest(req, db, {
+        module: "stores",
+        action: "view",
+      });
+      if (!auth.allowed) {
+        return res
+          .status(auth.status)
+          .json({ ok: false, code: auth.errorCode, error: auth.reason });
+      }
+
+      const reports: StoreReportRecord[] = Array.isArray(db.storeReports)
+        ? db.storeReports
+        : [];
+      const kpis = computeReportsCenterKpis(reports);
+
+      // Compute prior report count per store and strip reporterKey
+      const countByStore: Record<string, number> = {};
+      for (const r of reports) {
+        if (r?.storeId) {
+          countByStore[r.storeId] = (countByStore[r.storeId] || 0) + 1;
+        }
+      }
+
+      const sanitizedReports = reports.map(({ reporterKey: _rk, ...rest }) => ({
+        ...rest,
+        storeTotalReportsCount: countByStore[rest.storeId] || 1,
+      }));
+
+      return res.json({
+        ok: true,
+        kpis,
+        reports: sanitizedReports,
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_LOAD_ADMIN_REPORTS" });
+    }
+  });
+
+  app.patch("/api/admin/store-reports/:reportId", async (req, res) => {
+    try {
+      const reportId = String(req.params.reportId || "").trim();
+      const db = await loadDatabase();
+      const auth = authorizeAdminRequest(req, db, {
+        module: "stores",
+        action: "edit",
+      });
+      if (!auth.allowed) {
+        return res
+          .status(auth.status)
+          .json({ ok: false, code: auth.errorCode, error: auth.reason });
+      }
+
+      const reports: StoreReportRecord[] = Array.isArray(db.storeReports)
+        ? db.storeReports
+        : [];
+      const idx = reports.findIndex((r) => r && r.id === reportId);
+      if (idx < 0) {
+        return res.status(404).json({ ok: false, error: "REPORT_NOT_FOUND" });
+      }
+
+      const actor = auth.adminAccount || DEFAULT_SERVER_ADMINS[0];
+      const updated = applyAdminReportUpdate({
+        report: reports[idx],
+        actorName: actor.fullName || actor.email || "Platform Admin",
+        actorRole: actor.roleId || "super_admin",
+        nextStatus: req.body?.status,
+        nextPriority: req.body?.priority,
+        newInternalNote: req.body?.internalNote,
+      });
+
+      reports[idx] = updated;
+      db.storeReports = reports;
+
+      appendServerAuditLog(db, {
+        actorId: actor.uid,
+        actorName: actor.fullName || actor.email,
+        actorEmail: actor.email,
+        actorRole: actor.roleId,
+        actionType: "STORE_REPORT_INVESTIGATION_UPDATED",
+        targetType: "store",
+        targetId: updated.storeId,
+        targetName: `${updated.id} (${updated.storeName})`,
+        reason: `Report ${updated.id} updated: status=${updated.status}, priority=${updated.priority}`,
+      });
+
+      await saveDatabase(db);
+      const { reporterKey: _rk, ...safeUpdated } = updated;
+
+      return res.json({
+        ok: true,
+        report: safeUpdated,
+        kpis: computeReportsCenterKpis(reports),
+      });
+    } catch {
+      return res.status(500).json({ ok: false, error: "FAILED_TO_UPDATE_STORE_REPORT" });
+    }
+  });
+
+  // ============================================================================
+  // 5B. PARTNER PICKS RECIPROCAL MERCHANT COLLABORATION & PLACEMENT ROUTES
+  // ============================================================================
+  registerPartnerPicksRoutes(app);
 
   // ============================================================================
   // 6. VITE DEV MIDDLEWARE / PRODUCTION STATIC ASSETS

@@ -2535,11 +2535,6 @@ export default function WizardStep4Specs({
                     <label className="text-xs font-black block font-mono text-slate-900 dark:text-slate-100" style={{ fontSize: "12px" }}>
                       <span>Product Variants</span>
                     </label>
-                    {wizardVariantsEnabled && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        Active
-                      </span>
-                    )}
                     <HintTooltip
                       text="Enable Product Variants to configure Colors, Category-Specific Sizes/Options, and Manage Stock by Variants."
                       currentSlideColor={currentSlideColor}
@@ -2592,16 +2587,7 @@ export default function WizardStep4Specs({
 
                     {/* Color Variant Display Model Selector + Live Storefront Preview */}
                     <div className="bg-white dark:bg-slate-950/70 p-3.5 sm:p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-3.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 font-mono">
-                            <Image className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                            <span>Color Variant Display Style</span>
-                          </span>
-                          <span className="text-[10.5px] text-slate-500 dark:text-slate-400">
-                            Select how shoppers view and switch colors on the product page
-                          </span>
-                        </div>
+                      <div className="flex flex-wrap items-center justify-start gap-3">
 
                         <div className="inline-flex flex-wrap p-1 bg-slate-100/90 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 gap-1.5">
                           {/* Style 1: Variant Circle */}
@@ -2879,180 +2865,8 @@ export default function WizardStep4Specs({
                       </div>
                     </div>
 
-                    {/* Custom Color Input + Direct Screen Eyedropper + Secondary Expandable 8 Basic Colors Toggle */}
-                    <div className="bg-white dark:bg-slate-950/70 p-3.5 sm:p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 font-mono flex items-center gap-1.5">
-                          <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                          <span>Add Custom Color or Sample from Screen</span>
-                        </span>
-
-                        {/* Secondary Expandable Option for 8 Basic Colors Palette */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowBasicColorPalette((prev) => !prev);
-                            setActiveColorFamilyPopover(null);
-                          }}
-                          className={`text-[11px] font-bold font-mono px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
-                            showBasicColorPalette
-                              ? "bg-slate-900 text-white border-slate-900 dark:bg-blue-600 dark:border-blue-500"
-                              : "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200/70 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          <Palette className="w-3.5 h-3.5" />
-                          <span>{showBasicColorPalette ? "Hide Basic Color Presets" : "Browse 8 Basic Color Presets"}</span>
-                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showBasicColorPalette ? "rotate-180" : ""}`} />
-                        </button>
-                      </div>
-
-                      {/* Expandable 8 Basic Color Families Drawer (Hidden by default to reduce clutter) */}
-                      {showBasicColorPalette && (
-                        <div
-                          className={`p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 space-y-3 animate-fade-in relative ${
-                            activeColorFamilyPopover ? "z-50" : "z-10"
-                          }`}
-                        >
-                          {/* Active Market Cultural Color Palette (Market-Scoped) */}
-                          {marketCulturalColors.length > 0 && (
-                            <div className="pb-2.5 border-b border-slate-200/80 dark:border-slate-800 space-y-2">
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="text-[10.5px] font-bold text-indigo-700 dark:text-indigo-300 font-mono flex items-center gap-1.5">
-                                  <span>{activeMarketInfo.flag}</span>
-                                  <span>{activeMarketInfo.countryName} Cultural &amp; Regional Palette:</span>
-                                </span>
-                                <span className="text-[9.5px] text-slate-400 font-mono">
-                                  Scoped to {activeMarketInfo.countryName} Market ({activeMarketInfo.id})
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {marketCulturalColors.map((cSwatch) => (
-                                  <button
-                                    key={`${cSwatch.name}-${cSwatch.hex}`}
-                                    type="button"
-                                    onClick={() => {
-                                      setCustomSwatchHex(cSwatch.hex);
-                                      setCustomSwatchName(cSwatch.name);
-                                      handleAddColorSwatch(cSwatch.name, cSwatch.hex);
-                                    }}
-                                    title={`${cSwatch.name} (${cSwatch.hex}) — ${cSwatch.inspiration}`}
-                                    className="flex items-center gap-1.5 py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 text-[10.5px] font-bold text-slate-800 dark:text-slate-100 transition-all cursor-pointer active:scale-95"
-                                  >
-                                    <span
-                                      className="w-3 h-3 rounded-full border border-black/20 shrink-0"
-                                      style={{ backgroundColor: cSwatch.hex }}
-                                    />
-                                    <span>{cSwatch.name}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300 font-mono">
-                              Click a color family to pick its base tone or sub-shades:
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              White &bull; Black &bull; Red &bull; Blue &bull; Green &bull; Yellow &bull; Brown &bull; Gray
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            {CORE_8_COLOR_FAMILIES.map((family) => {
-                              const isPopoverOpen = activeColorFamilyPopover === family.id;
-                              return (
-                                <div key={family.id} className={`relative ${isPopoverOpen ? "z-50" : "z-10"}`}>
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveColorFamilyPopover(isPopoverOpen ? null : family.id)}
-                                    className={`flex items-center gap-1.5 py-1.5 px-3 border text-[11px] font-extrabold cursor-pointer transition-all active:scale-95 rounded-lg ${
-                                      isPopoverOpen
-                                        ? "bg-slate-900 text-white border-slate-900 dark:bg-blue-600 dark:border-blue-500 shadow-xs"
-                                        : "bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-700"
-                                    }`}
-                                  >
-                                    <span
-                                      className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0"
-                                      style={{ backgroundColor: family.baseHex }}
-                                    />
-                                    <span>{family.name}</span>
-                                    <ChevronDown className={`w-3 h-3 transition-transform ${isPopoverOpen ? "rotate-180 text-white" : "text-slate-400"}`} />
-                                  </button>
-
-                                  {isPopoverOpen && (
-                                    <div
-                                      ref={popoverRef}
-                                      className={`absolute ${
-                                        family.id === "gray" || family.id === "brown" || family.id === "yellow"
-                                          ? "right-0 sm:left-auto"
-                                          : "left-0"
-                                      } top-full mt-2 z-[9999] w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-3 space-y-2.5 animate-fadeIn text-left`}
-                                    >
-                                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                                        <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 font-mono">
-                                          <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: family.baseHex }} />
-                                          {family.name} Family
-                                        </span>
-                                        <button
-                                          type="button"
-                                          onClick={() => setActiveColorFamilyPopover(null)}
-                                          className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-0.5 cursor-pointer rounded"
-                                        >
-                                          <X className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setCustomSwatchHex(family.baseHex);
-                                          setCustomSwatchName(family.name);
-                                          handleAddColorSwatch(family.name, family.baseHex);
-                                          setActiveColorFamilyPopover(null);
-                                        }}
-                                        className="w-full flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-slate-200 dark:border-slate-700 hover:border-blue-300 text-xs font-bold text-slate-900 dark:text-white transition-colors cursor-pointer group"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span className="w-4 h-4 rounded-full border border-black/20" style={{ backgroundColor: family.baseHex }} />
-                                          <span>Add Base {family.name}</span>
-                                        </div>
-                                        <span className="text-[10px] font-mono text-slate-400 group-hover:text-blue-600">{family.baseHex}</span>
-                                      </button>
-
-                                      <div className="text-[9.5px] font-bold text-slate-400 font-mono uppercase tracking-wider pt-0.5">
-                                        {family.name} Shades:
-                                      </div>
-
-                                      <div className="grid grid-cols-1 gap-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                        {family.shades.map((shade) => (
-                                          <button
-                                            key={shade.name}
-                                            type="button"
-                                            onClick={() => {
-                                              setCustomSwatchHex(shade.hex);
-                                              setCustomSwatchName(shade.name);
-                                              handleAddColorSwatch(shade.name, shade.hex);
-                                              setActiveColorFamilyPopover(null);
-                                            }}
-                                            className="w-full flex items-center justify-between p-1.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-slate-200 dark:border-slate-700 hover:border-blue-300 text-xs font-medium text-slate-800 dark:text-slate-200 transition-colors cursor-pointer text-left"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <span className="w-3.5 h-3.5 rounded-full border border-black/15 shrink-0" style={{ backgroundColor: shade.hex }} />
-                                              <span className="font-semibold text-slate-900 dark:text-white">{shade.name}</span>
-                                            </div>
-                                            <span className="text-[10px] font-mono text-slate-400">{shade.hex}</span>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                    {/* Custom Color Input + Direct Screen Eyedropper */}
+                    <div className="bg-white dark:bg-slate-950/70 p-3.5 sm:p-4 rounded-xl border border-slate-200/90 dark:border-slate-800">
 
                       {/* Custom Color Input + Direct Eyedropper + HEX Box + Add Swatch */}
                       <div className="flex flex-col sm:flex-row gap-2.5 items-center relative z-0">

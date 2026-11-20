@@ -888,19 +888,21 @@ export function filterAndSortAboutItemSpecs(
 }
 
 export const YUME_COORDINATED_ACCENT_PALETTE = [
+  "#4D4040", // Deep Espresso Cocoa (YUME Brand)
+  "#A64B45", // Crimson Terracotta Rose (YUME Brand)
+  "#A66F78", // Dusty Mauve Rose (YUME Brand)
+  "#806477", // Velvet Plum Aubergine (YUME Brand)
   "#2563eb", // Blue
-  "#eab308", // Yellow / Gold
   "#e11d48", // Red / Rose
   "#10b981", // Green / Emerald
   "#06b6d4", // Cyan
   "#6366f1", // Indigo
-  "#f97316", // Orange
   "#0d9488", // Teal
 ] as const;
 
 export function pickRandomYumeAccentColor(): string {
   const idx = Math.floor(Math.random() * YUME_COORDINATED_ACCENT_PALETTE.length);
-  return YUME_COORDINATED_ACCENT_PALETTE[idx] || "#2563eb";
+  return YUME_COORDINATED_ACCENT_PALETTE[idx] || "#4D4040";
 }
 
 export function hasArabicCharacters(text?: string): boolean {

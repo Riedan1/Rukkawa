@@ -54,6 +54,7 @@ import {
   getProductBasePrice,
   calculateDynamicShippingFee,
 } from "../utils/wizardLogic";
+import { hasIpRequestedNotify, StockNotifyRequest } from "../utils/stockNotifyAlerts";
 import { 
   ArrowLeft, 
   X, 
@@ -305,7 +306,32 @@ interface ProductPreviewNewWayProps {
   comparedProducts?: Product[];
   onToggleCompare?: (product: Product) => void;
   onSelectProduct?: (product: Product) => void;
-  onNotifyMe?: (productName: string, storeName: string) => void;
+  onNotifyMe?: (
+    productName: string,
+    storeName: string,
+    details?: {
+      storeId: string;
+      productId: string;
+      productImage?: string;
+      variantId?: string;
+      variantLabel?: string;
+    }
+  ) => void;
+  stockNotifyRequests?: StockNotifyRequest[];
+  visitorIpKey?: string;
+  partnerPickDiscoverItems?: Array<{
+    product: Product;
+    sourceStore: MerchantStore;
+    placementId: string;
+    partnershipId: string;
+    slotPositionIndex: number;
+  }>;
+  onOpenPartnerPickDiscoverItem?: (item: {
+    product: Product;
+    sourceStore: MerchantStore;
+    placementId: string;
+    partnershipId: string;
+  }) => void;
 }
 
 interface ThreadedComment {
@@ -692,6 +718,10 @@ export default function ProductPreviewNewWay({
   onToggleCompare,
   onSelectProduct,
   onNotifyMe,
+  stockNotifyRequests = [],
+  visitorIpKey,
+  partnerPickDiscoverItems = [],
+  onOpenPartnerPickDiscoverItem,
 }: ProductPreviewNewWayProps) {
   const isSimilarProductsEnabled = selectedStore?.designSettings?.showSimilarProducts !== false;
 
@@ -928,6 +958,40 @@ export default function ProductPreviewNewWay({
       })
       .map((entry) => entry.product);
   }, [selectedStore, selectedProduct]);
+
+  const combinedDiscoverEntries = useMemo(() => {
+    const entries: Array<{
+      product: Product;
+      partnerPick?: {
+        sourceStore: MerchantStore;
+        placementId: string;
+        partnershipId: string;
+        slotPositionIndex: number;
+      };
+    }> = similarProducts.map((product) => ({ product }));
+
+    if (Array.isArray(partnerPickDiscoverItems) && partnerPickDiscoverItems.length > 0) {
+      const sortedPicks = [...partnerPickDiscoverItems].sort(
+        (a, b) => (a.slotPositionIndex || 1) - (b.slotPositionIndex || 1)
+      );
+      for (const pick of sortedPicks) {
+        if (!pick?.product || pick.product.id === selectedProduct?.id) continue;
+        if (entries.some((e) => e.product.id === pick.product.id)) continue;
+        const targetIdx = Math.max(0, Math.min(entries.length, (pick.slotPositionIndex || 2) - 1));
+        entries.splice(targetIdx, 0, {
+          product: pick.product,
+          partnerPick: {
+            sourceStore: pick.sourceStore,
+            placementId: pick.placementId,
+            partnershipId: pick.partnershipId,
+            slotPositionIndex: pick.slotPositionIndex,
+          },
+        });
+      }
+    }
+
+    return entries;
+  }, [similarProducts, partnerPickDiscoverItems, selectedProduct]);
 
   useEffect(() => {
     checkSimilarScrollLimit();
@@ -1989,6 +2053,41 @@ export default function ProductPreviewNewWay({
   }, [chosenColor, activeColorSpec, matchedVariant, galleryImages, findImageInGallery]);
   const [isOutOfStockState, setIsOutOfStockState] = useState(false);
   const [hasNotified, setHasNotified] = useState(false);
+
+  const currentNotifyVariantSummary =
+    matchedVariant?.name ||
+    [chosenColor, chosenSize].filter(Boolean).join(" • ") ||
+    undefined;
+
+  const isCurrentItemNotifiedForIp = useMemo(
+    () =>
+      hasIpRequestedNotify(
+        stockNotifyRequests || [],
+        {
+          storeId: selectedStore.id,
+          productId: selectedProduct.id,
+          productName: selectedProduct.name,
+          variantId: matchedVariant?.id,
+          variantLabel: currentNotifyVariantSummary,
+        },
+        visitorIpKey
+      ),
+    [
+      stockNotifyRequests,
+      selectedStore.id,
+      selectedProduct.id,
+      selectedProduct.name,
+      matchedVariant?.id,
+      currentNotifyVariantSummary,
+      visitorIpKey,
+    ]
+  );
+
+  const effectiveHasNotified = hasNotified || isCurrentItemNotifiedForIp;
+
+  useEffect(() => {
+    setHasNotified(false);
+  }, [selectedProduct.id, matchedVariant?.id, currentNotifyVariantSummary]);
 
   useEffect(() => {
     setIsOutOfStockState(false);
@@ -5749,13 +5848,13 @@ export default function ProductPreviewNewWay({
                             )}
                           </strong>
                         </span>
-                        {chosenColor && (
+                        {(chosenColor || chosenSize || Object.values(selectedOptions).some(Boolean)) && (
                           <button
                             type="button"
-                            onClick={() => handleUnselectOption("Color")}
-                            className="text-xs font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-2 transition-colors cursor-pointer"
+                            onClick={() => handleUnselectOption()}
+                            className="text-xs font-semibold text-stone-500 hover:text-stone-900 dark:text-slate-400 dark:hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
                           >
-                            Clear
+                            Clear All
                           </button>
                         )}
                       </div>
@@ -5964,25 +6063,21 @@ export default function ProductPreviewNewWay({
                               {chosenSize ? chosenSize : <span className="text-stone-400 font-normal">Choose a size</span>}
                             </strong>
                           </span>
-                          {showFindYourFit && (
-                            <FindYourFitButton
-                              onClick={() => setIsFindYourFitOpen(true)}
-                              currentLanguage={descLang}
-                            />
-                          )}
                         </div>
-                        {chosenSize && (
+                        {(!colorOptions || colorOptions.length === 0 || (variantOptions && Object.keys(variantOptions).some(k => isColorOptionName(k)))) &&
+                          (chosenColor || chosenSize || Object.values(selectedOptions).some(Boolean)) && (
                           <button
                             type="button"
-                            onClick={() => handleUnselectOption("Size")}
-                            className="text-xs font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-2 transition-colors cursor-pointer"
+                            onClick={() => handleUnselectOption()}
+                            className="text-xs font-semibold text-stone-500 hover:text-stone-900 dark:text-slate-400 dark:hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
                           >
-                            Clear
+                            Clear All
                           </button>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap gap-2 items-center">
+                      <div className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex flex-wrap gap-2 items-center">
                         {sizeOptions.map((sz, sIdx) => {
                           const isSelected = Boolean(chosenSize && chosenSize.toLowerCase() === sz.toLowerCase());
                           const symbol = getSizeSymbol(sz);
@@ -6028,6 +6123,13 @@ export default function ProductPreviewNewWay({
                             </button>
                           );
                         })}
+                        </div>
+                        {showFindYourFit && (
+                          <FindYourFitButton
+                            onClick={() => setIsFindYourFitOpen(true)}
+                            currentLanguage={descLang}
+                          />
+                        )}
                       </div>
                     </div>
                   )}
@@ -6060,26 +6162,24 @@ export default function ProductPreviewNewWay({
                                     )}
                                   </strong>
                                 </span>
-                                {isSizeOpt && showFindYourFit && (
-                                  <FindYourFitButton
-                                    onClick={() => setIsFindYourFitOpen(true)}
-                                    currentLanguage={descLang}
-                                  />
-                                )}
                               </div>
-                              {selectedValue && (
+                              {oIdx === 0 &&
+                                !((!variantOptions || !Object.keys(variantOptions).some(k => isColorOptionName(k))) && colorOptions && colorOptions.length > 0) &&
+                                !((!variantOptions || !Object.keys(variantOptions).some(k => isSizeOptionName(k))) && sizeOptions && sizeOptions.length > 0) &&
+                                (chosenColor || chosenSize || Object.values(selectedOptions).some(Boolean)) && (
                                 <button
                                   type="button"
-                                  onClick={() => handleUnselectOption(optionName)}
-                                  className="text-xs font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-2 transition-colors cursor-pointer"
+                                  onClick={() => handleUnselectOption()}
+                                  className="text-xs font-semibold text-stone-500 hover:text-stone-900 dark:text-slate-400 dark:hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
                                 >
-                                  Clear
+                                  Clear All
                                 </button>
                               )}
                             </div>
 
                             {/* Options buttons / swatches (No prices inside boxes) */}
-                            <div className="flex flex-wrap gap-2.5 items-center">
+                            <div className="flex flex-wrap items-center justify-between gap-2.5">
+                              <div className="flex flex-wrap gap-2.5 items-center">
                               {optionValues.map((val, vIdx) => {
                                 const isSelected = Boolean(selectedValue && selectedValue.toLowerCase() === val.toLowerCase());
                                 const displayVal = isSizeOpt ? getSizeSymbol(val) : val;
@@ -6291,7 +6391,13 @@ export default function ProductPreviewNewWay({
                                   </button>
                                 );
                               })}
-
+                              </div>
+                              {isSizeOpt && showFindYourFit && (
+                                <FindYourFitButton
+                                  onClick={() => setIsFindYourFitOpen(true)}
+                                  currentLanguage={descLang}
+                                />
+                              )}
                             </div>
                           </div>
                         );
@@ -6982,20 +7088,24 @@ export default function ProductPreviewNewWay({
                       type="button"
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
-                        if (hasNotified) return;
+                        if (effectiveHasNotified) return;
                         setHasNotified(true);
                         if (onNotifyMe) {
-                          onNotifyMe(selectedProduct.name, selectedStore.name);
+                          onNotifyMe(selectedProduct.name, selectedStore.name, {
+                            storeId: selectedStore.id,
+                            productId: selectedProduct.id,
+                            productImage: selectedProduct.imageUrl || (selectedProduct.images && selectedProduct.images[0]),
+                            variantId: matchedVariant?.id,
+                            variantLabel: currentNotifyVariantSummary,
+                          });
                         }
-                        setTimeout(() => setHasNotified(false), 4000);
                       }}
                       className="w-full h-12 text-white font-bold rounded-full text-center text-sm shadow-sm cursor-pointer transition-all flex items-center justify-center gap-2"
                       style={{
-                        backgroundColor: hasNotified ? "#10b981" : themeAccentColor,
+                        backgroundColor: effectiveHasNotified ? "#10b981" : themeAccentColor,
                       }}
                     >
-                      <Sparkles className="w-4 h-4 shrink-0" />
-                      <span>{hasNotified ? "We'll Notify You! ✓" : "Notify Me"}</span>
+                      <span>{effectiveHasNotified ? "We'll Notify You! ✓" : "Notify Me"}</span>
                     </motion.button>
                   ) : (
                     <>
@@ -7375,25 +7485,25 @@ export default function ProductPreviewNewWay({
                           type="button"
                           whileTap={{ scale: 0.98 }}
                           onClick={() => {
-                            if (hasNotified) return;
+                            if (effectiveHasNotified) return;
                             setHasNotified(true);
                             if (onNotifyMe) {
-                              onNotifyMe(selectedProduct.name, selectedStore.name);
-                            } else {
-                              alert(`Notify Me registered for ${selectedProduct.name}`);
+                              onNotifyMe(selectedProduct.name, selectedStore.name, {
+                                storeId: selectedStore.id,
+                                productId: selectedProduct.id,
+                                productImage: selectedProduct.imageUrl || (selectedProduct.images && selectedProduct.images[0]),
+                                variantId: matchedVariant?.id,
+                                variantLabel: currentNotifyVariantSummary,
+                              });
                             }
-                            setTimeout(() => {
-                              setHasNotified(false);
-                            }, 4000);
                           }}
                           className="w-full text-white font-extrabold py-2.5 px-5 rounded-xl text-center text-xs shadow-md hover:shadow-lg active:scale-97 cursor-pointer transition-all border-2 select-none outline-none flex items-center justify-center gap-2 group"
                           style={{ 
-                            backgroundColor: hasNotified ? "#10b981" : activeThemeColor, 
-                            borderColor: hasNotified ? "#10b981" : activeThemeColor 
+                            backgroundColor: effectiveHasNotified ? "#10b981" : activeThemeColor, 
+                            borderColor: effectiveHasNotified ? "#10b981" : activeThemeColor 
                           }}
                         >
-                          <Sparkles className={`w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110 ${hasNotified ? "animate-pulse" : ""}`} />
-                          <span>{hasNotified ? "We'll Notify You! ✓" : "Notify Me"}</span>
+                          <span>{effectiveHasNotified ? "We'll Notify You! ✓" : "Notify Me"}</span>
                         </motion.button>
                       ) : (
                         <>
@@ -7542,7 +7652,7 @@ export default function ProductPreviewNewWay({
           )}
 
           {/* 4. Discover More Products Section (Store Products Carousel style) */}
-          {isSimilarProductsEnabled && similarProducts.length > 0 && (
+          {isSimilarProductsEnabled && combinedDiscoverEntries.length > 0 && (
             <div
               id="similar-products-section"
               className="mt-5 space-y-2.5 text-left font-sans w-full"
@@ -7620,11 +7730,12 @@ export default function ProductPreviewNewWay({
                     WebkitOverflowScrolling: "touch"
                   }}
                 >
-                  {similarProducts.map((prod, index) => {
+                  {combinedDiscoverEntries.map((entry, index) => {
+                    const prod = entry.product;
+                    const partnerPick = entry.partnerPick;
                     let scale = 1;
-                    let opacity = 1;
                     let zIndex = 10;
-                    let isFocused = false;
+                    const isFocused = false;
 
                     if (isSimilarMouseOver) {
                       const isHovered = similarHoveredIndex === index;
@@ -7639,6 +7750,8 @@ export default function ProductPreviewNewWay({
                     return (
                       <motion.div
                         key={prod.id ? `sim-${prod.id}-${index}` : `sim-idx-${index}`}
+                        data-partner-pick={partnerPick ? "true" : undefined}
+                        data-partner-source-store={partnerPick?.sourceStore.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (isSimilarDragging.current) return;
@@ -7647,6 +7760,15 @@ export default function ProductPreviewNewWay({
                             modalRoot.scrollTop = 0;
                           }
                           window.scrollTo(0, 0);
+                          if (partnerPick && onOpenPartnerPickDiscoverItem) {
+                            onOpenPartnerPickDiscoverItem({
+                              product: prod,
+                              sourceStore: partnerPick.sourceStore,
+                              placementId: partnerPick.placementId,
+                              partnershipId: partnerPick.partnershipId,
+                            });
+                            return;
+                          }
                           if (onSelectProduct) onSelectProduct(prod);
                         }}
                         onMouseEnter={() => setSimilarHoveredIndex(index)}
@@ -7658,7 +7780,11 @@ export default function ProductPreviewNewWay({
                           duration: 0.2, 
                           ease: "easeOut" 
                         }}
-                        className="flex-none snap-start h-[210px] ml-0 pl-0 pr-0 pt-0 rounded-xl overflow-hidden border border-slate-200 dark:!border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 ease-out relative flex flex-col justify-between group cursor-pointer pb-2 select-none"
+                        className={`flex-none snap-start h-[210px] ml-0 pl-0 pr-0 pt-0 rounded-xl overflow-hidden border bg-white dark:bg-slate-900 transition-all duration-200 ease-out relative flex flex-col justify-between group cursor-pointer pb-2 select-none ${
+                          partnerPick
+                            ? "border-emerald-500/60 dark:!border-emerald-500/50 ring-1 ring-emerald-500/20"
+                            : "border-slate-200 dark:!border-slate-800"
+                        }`}
                         style={{
                           width: "calc((100% - 40px) / 5.2)",
                           minWidth: "140px",
@@ -7667,9 +7793,13 @@ export default function ProductPreviewNewWay({
                           boxShadow: isHovered || isFocused 
                             ? "0 12px 24px rgba(0,0,0,0.12)" 
                             : "0 2px 8px rgba(0,0,0,0.04)",
-                          borderColor: isHovered || isFocused ? "#cbd5e1" : "#e2e8f0"
+                          borderColor: partnerPick
+                            ? "#10b981"
+                            : isHovered || isFocused
+                            ? "#cbd5e1"
+                            : "#e2e8f0"
                         }}
-                        title={prod.name}
+                        title={partnerPick ? `${prod.name} • Partner Pick from ${partnerPick.sourceStore.name}` : prod.name}
                       >
                         {/* Top: Image Aspect Box */}
                         <div className="aspect-square w-full rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-800 relative shrink-0 select-none pointer-events-none">
@@ -7682,11 +7812,15 @@ export default function ProductPreviewNewWay({
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover pointer-events-none select-none"
                           />
-                          {(prod as any).oldPrice && (prod as any).oldPrice > prod.price && (
+                          {partnerPick ? (
+                            <span className="absolute top-1 left-1 right-1 bg-emerald-600/95 backdrop-blur-xs text-white text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-xs truncate">
+                              Partner Pick • {partnerPick.sourceStore.name}
+                            </span>
+                          ) : (prod as any).oldPrice && (prod as any).oldPrice > prod.price ? (
                             <span className="absolute top-1 left-1 bg-slate-900 text-white text-[8.5px] font-bold px-1.5 py-0.3 rounded-full shadow-2xs">
                               -{Math.round((((prod as any).oldPrice - prod.price) / (prod as any).oldPrice) * 100)}%
                             </span>
-                          )}
+                          ) : null}
                         </div>
 
                         {/* Bottom info section */}
@@ -7718,6 +7852,10 @@ export default function ProductPreviewNewWay({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (isSimilarDragging.current) return;
+                                if (partnerPick && handleAddToCart) {
+                                  handleAddToCart(prod, partnerPick.sourceStore, 1);
+                                  return;
+                                }
                                 if (handleAddToCart && selectedStore) {
                                   handleAddToCartWithGuestCheck(prod);
                                 }

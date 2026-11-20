@@ -418,14 +418,57 @@ nav.nav-horizontal > *,
    Preserve bespoke vertical navigation, sidebars, grids, and workflows intact.
    ========================================================================== */
 :root {
-  --yume-theme-header-color: #0b2447;
+  --yume-theme-header-color: #4D4040;
+  --yume-theme-header-raw-color: #4D4040;
+  --yume-theme-header-fg: #FFFFFF;
+  --yume-theme-header-border: rgba(255, 255, 255, 0.2);
+  --yume-theme-footer-color: var(--yume-theme-header-color);
+  --yume-color-btn-primary: #4D4040;
+  --yume-color-btn-primary-fg: #FFFFFF;
+  --yume-color-btn-secondary: #F9FBF4;
+  --yume-color-link: #A64B45;
+  --yume-color-bg-surface: #F9FBF4;
+  --yume-color-accent: #A64B45;
+  --yume-color-accent-fg: #FFFFFF;
+  --yume-color-brand-extra: #806477;
 }
 
 #main-studio-header,
 #yume-styled-sidebar {
   background-color: var(--yume-theme-header-color) !important;
-  transition: background-color 700ms cubic-bezier(0.4, 0, 0.2, 1), border-color 700ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: background-color 700ms cubic-bezier(0.4, 0, 0.2, 1), border-color 700ms cubic-bezier(0.4, 0, 0.2, 1), color 700ms cubic-bezier(0.4, 0, 0.2, 1) !important;
   will-change: background-color;
+}
+
+/* Contrast adaptation when a high-luminance brand color like #F9FBF4 is active in Light Mode */
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header,
+html:not(.dark)[data-yume-header-tone="light"] #yume-styled-sidebar {
+  color: #1e293b !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+}
+
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header [class*="text-white"],
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header .text-slate-100,
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header .text-slate-200,
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header .text-slate-300,
+html:not(.dark)[data-yume-header-tone="light"] #yume-styled-sidebar [class*="text-white"] {
+  color: #1e293b !important;
+}
+
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header #tab-controls,
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header #header-cart-btn,
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header #language-switcher > button,
+html:not(.dark)[data-yume-header-tone="light"] #main-studio-header #global-typography-menu-container > button {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+  color: #1e293b !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #main-studio-header,
+  #yume-styled-sidebar {
+    transition-duration: 0ms !important;
+  }
 }
 
 #merchant-mode-container,

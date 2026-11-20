@@ -17,6 +17,33 @@ import {
   canStoreAcceptNewCheckout,
 } from "./utils/centralGovernanceArchitecture";
 import {
+  CANONICAL_YUME_BRAND_PALETTE_ITEMS,
+  getInitialSessionCursors,
+  getSlidePairingForHex,
+  useBrandIdentityColorEngine,
+} from "./utils/brandIdentityColorSystem";
+import { ExpressCartIcon } from "./components/ExpressCartIcon";
+import {
+  verifyStrictStoreOwnership,
+  resolveMerchantOwnedStoreIds,
+  canUserManageStoreStories,
+  normalizeStoreDockSettings,
+  formatPublicFollowerCountDisplay,
+  isPublicStoreNavigationTabAllowed,
+  isStoreCurrentlyMuted,
+  createStoreReportSubmission,
+  applyAdminReportUpdate,
+  type StoreDockSettings,
+  type UserStoreMuteRecord,
+  type UserStoreBlockRecord,
+  type StoreReportRecord,
+  type StoreReportStatus,
+  type StoreReportPriority,
+  type MuteDurationPresetId,
+  type ReportStoreReason,
+  type PartnerPicksEntryContext,
+} from "./utils/storeMoreOptionsLogic";
+import {
   Map as MapIcon,
   ShoppingBag,
   Store,
@@ -171,6 +198,36 @@ import {
   isProfileStoriesEnabled,
   getVisibleProfileStoreStories,
 } from "./utils/storiesLogic";
+import { PartnerPicksRequestModal } from "./components/PartnerPicksRequestModal";
+import type {
+  MerchantPartnerPicksProfile,
+  PartnerPickChannelId,
+  PartnerPickProductPlacement,
+  PartnerPickProposedOption,
+  PartnerPicksBidirectionalExposureLedger,
+  PartnerPicksChannelAnalyticsEvent,
+  PartnerPicksGlobalConfig,
+  PartnerPicksPartnership,
+} from "./types";
+import {
+  createDefaultPartnerPicksGlobalConfig,
+  normalizePartnerPicksGlobalConfig,
+} from "./utils/partnerPicksSchema";
+import {
+  createInitialUserPartnerPicksFatigueState,
+  recordUserPartnerPickProductClickOrView,
+  recordUserPartnerPickSkip,
+  resolveSequentialInsertionIndices,
+  type UserPartnerPicksFatigueState,
+} from "./utils/partnerPicksFrequencyEngine";
+import {
+  resolveActiveHostPartnerRotationContext,
+  resolveChannelPartnerPicksForHostContext,
+  type ActiveHostPartnerRotationContext,
+  type PartnerCandidateFairnessScore,
+  type ResolvedChannelPartnerPickSlot,
+} from "./utils/partnerPicksFairnessAndRotation";
+import { shouldInjectPartnerPickIntoStoriesSequence } from "./utils/partnerPicksEligibility";
 import { CountrySelector } from "./components/CountrySelector";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { LiveStoreCustomizer } from "./components/LiveStoreCustomizer";
@@ -192,6 +249,16 @@ import {
   deductProductVariantStockOnOrder,
 } from "./utils/wizardLogic";
 import { recordOfferTierSale } from "./utils/offersLogic";
+import {
+  StockNotifyRequest,
+  loadStockNotifyRequests,
+  saveStockNotifyRequests,
+  normalizeStockNotifyRequests,
+  recordStockNotifyWithResult,
+  resolveStockNotifyRequests,
+  loadCachedVisitorIpKey,
+  saveCachedVisitorIpKey,
+} from "./utils/stockNotifyAlerts";
 
 export const PROFILE_BG_PATTERNS = [
   {
@@ -1084,12 +1151,14 @@ const StoreBrandingName = ({
   store, 
   currentLanguage, 
   verified,
-  isGlassBanner
+  isGlassBanner,
+  forceLightText = false,
 }: { 
   store: MerchantStore; 
   currentLanguage: string; 
   verified?: boolean;
   isGlassBanner?: boolean;
+  forceLightText?: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -1110,14 +1179,16 @@ const StoreBrandingName = ({
       onClick={handleCopy}
     >
       <h3 className={`text-base sm:text-lg md:text-xl font-black font-display leading-tight flex items-center justify-center sm:justify-start gap-1.5 transition-all ${
-        isGlassBanner 
+        forceLightText
+          ? "text-white group-hover/store-name:text-slate-100"
+          : isGlassBanner 
           ? "text-neutral-950 dark:text-white group-hover/store-name:text-neutral-800 dark:group-hover/store-name:text-slate-200"
           : "text-slate-900 dark:text-white drop-shadow-sm dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover/store-name:text-indigo-650 dark:group-hover/store-name:text-indigo-300"
       }`}>
         <span>{store.name}</span>
         {verified && <VerifiedBadge className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
         <Copy className={`w-3.5 h-3.5 opacity-0 group-hover/store-name:opacity-75 transition-opacity duration-200 shrink-0 ${
-          isGlassBanner ? "text-neutral-800 dark:text-slate-300" : "text-slate-500 dark:text-slate-300"
+          forceLightText ? "text-slate-200" : isGlassBanner ? "text-neutral-800 dark:text-slate-300" : "text-slate-500 dark:text-slate-300"
         }`} />
       </h3>
 
@@ -1429,65 +1500,19 @@ const FollowersGlowWidget = ({
 };
 
 
-// --- YUME Brand Color Palette & Refresh-Based Session Color Selection ---
-// Selects a color from the existing YUME brand palette once per page load/refresh
-// and keeps it unchanged across all tabs, sections, headers, and banners during the session.
-const YUME_BRAND_PALETTE = [
-  {
-    hex: "#0b2447", // Premier Navy
-    bgColor: "bg-[#0b2447]",
-    buttonBg: "bg-[#CBDCF8]/90 hover:bg-[#CBDCF8]",
-    buttonTextBg: "text-[#0b2447]",
-  },
-  {
-    hex: "#023e8a", // Royal teal-blue
-    bgColor: "bg-[#023e8a]",
-    buttonBg: "bg-[#caf0f8] hover:bg-white",
-    buttonTextBg: "text-[#023e8a]",
-  },
-  {
-    hex: "#1b4332", // Deep Forest Green
-    bgColor: "bg-[#1b4332]",
-    buttonBg: "bg-[#d8f3dc] hover:bg-white",
-    buttonTextBg: "text-[#1b4332]",
-  },
-  {
-    hex: "#5c0632", // Rich Crimson Berry
-    bgColor: "bg-[#5c0632]",
-    buttonBg: "bg-[#fae0ec] hover:bg-white",
-    buttonTextBg: "text-[#5c0632]",
-  },
-  {
-    hex: "#744210", // Rich Terracotta / Clay / Copper tone
-    bgColor: "bg-[#744210]",
-    buttonBg: "bg-[#fef3c7] hover:bg-white",
-    buttonTextBg: "text-[#744210]",
-  },
-  {
-    hex: "#2d3748", // Charcoal Slate
-    bgColor: "bg-[#2d3748]",
-    buttonBg: "bg-[#e2e8f0] hover:bg-white",
-    buttonTextBg: "text-[#2d3748]",
-  },
-  {
-    hex: "#78350f", // Warm Amber/Honey / Autumn Gold
-    bgColor: "bg-[#78350f]",
-    buttonBg: "bg-[#fef3c7] hover:bg-white",
-    buttonTextBg: "text-[#78350f]",
-  },
-] as const;
+// --- YUME Brand Color Palette & Centralized Brand Identity Color Selection ---
+// Uses the updated Phase 1 YUME Brand Palette (#F9FBF4, #4D4040, #A64B45, #A66F78, #806477 + classic YUME tones)
+// with all desert, golden, gold-gradient, and brown/sandy colors removed.
+const YUME_BRAND_PALETTE = CANONICAL_YUME_BRAND_PALETTE_ITEMS;
 
 const SESSION_YUME_COLOR_INDEX: number = (() => {
   try {
-    const total = YUME_BRAND_PALETTE.length;
-    const prevRaw = localStorage.getItem("yume_refresh_palette_index");
-    const prevIdx = prevRaw !== null ? parseInt(prevRaw, 10) : -1;
-    const nextIdx = Number.isNaN(prevIdx) || prevIdx < 0 ? 0 : (prevIdx + 1) % total;
-    localStorage.setItem("yume_refresh_palette_index", String(nextIdx));
-    if (typeof document !== "undefined") {
-      document.documentElement.style.setProperty("--yume-theme-header-color", YUME_BRAND_PALETTE[nextIdx].hex);
+    const initialCursors = getInitialSessionCursors();
+    const idx = initialCursors.header % Math.max(1, YUME_BRAND_PALETTE.length);
+    if (typeof document !== "undefined" && YUME_BRAND_PALETTE[idx]) {
+      document.documentElement.style.setProperty("--yume-theme-header-color", YUME_BRAND_PALETTE[idx].hex);
     }
-    return nextIdx;
+    return idx;
   } catch {
     return 0;
   }
@@ -2594,7 +2619,7 @@ export default function App() {
         },
         {
           name: "Traditional Clay Jar",
-          imgUrl: "https://images.unsplash.com/photo-1576016770956-debb63d90029?w=300&auto=format&fit=crop&q=80",
+          imgUrl: "https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=300&auto=format&fit=crop&q=80",
           rotation: "rotate-6 md:rotate-12 translate-y-3 z-30"
         }
       ]
@@ -2626,7 +2651,7 @@ export default function App() {
       products: [
         {
           name: "Deglet Nour Dates Box",
-          imgUrl: "https://images.unsplash.com/photo-1629115911440-e9690f14d739?w=300&auto=format&fit=crop&q=80",
+          imgUrl: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=300&auto=format&fit=crop&q=80",
           rotation: "-rotate-8 translate-y-2 z-10"
         },
         {
@@ -2684,18 +2709,18 @@ export default function App() {
       ]
     },
     {
-      bgColor: "bg-[#744210]", // Rich Terracotta / Clay / Copper tone
-      buttonBg: "bg-[#fef3c7] hover:bg-white",
-      buttonTextBg: "text-[#744210]",
+      bgColor: "bg-[#A64B45]", // Crimson Terracotta Rose
+      buttonBg: "bg-[#F9FBF4] hover:bg-white",
+      buttonTextBg: "text-[#A64B45]",
       title: {
         en: "Artisanal Pottery & Ceramics",
         fr: "Poterie & Céramiques Artisanales",
         ar: "الفخار والخزف التقليدي الأصيل"
       },
       subtitle: {
-        en: "Hand-molded terracotta items and hand-painted Berber clay sets.",
-        fr: "Poteries en terre cuite moulées main & services en argile peints.",
-        ar: "أواني طينية مصنوعة يدوياً ومجموعات خزفية مزينة بالنقوش الأمازيغية."
+        en: "Hand-molded ceramic collections and hand-painted Berber sets.",
+        fr: "Céramiques moulées main & services traditionnels peints.",
+        ar: "أواني خزفية مصنوعة يدوياً ومجموعات مزينة بالنقوش الأمازيغية."
       },
       buttonText: {
         en: "Browse pottery",
@@ -2710,12 +2735,12 @@ export default function App() {
       products: [
         {
           name: "Clay Tagine Pot",
-          imgUrl: "https://images.unsplash.com/photo-1576016770956-debb63d90029?w=300&auto=format&fit=crop&q=80",
+          imgUrl: "https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=300&auto=format&fit=crop&q=80",
           rotation: "-rotate-6 md:-rotate-12 translate-y-2 z-10"
         },
         {
           name: "Handmade Pitcher",
-          imgUrl: "https://images.unsplash.com/photo-1595435934249-1dfdc28c03dc?w=300&auto=format&fit=crop&q=80",
+          imgUrl: "https://images.unsplash.com/photo-1535401991746-da3d9055713e?w=300&auto=format&fit=crop&q=80",
           rotation: "rotate-2 translate-y-0 md:-translate-y-1 z-20"
         },
         {
@@ -2726,9 +2751,9 @@ export default function App() {
       ]
     },
     {
-      bgColor: "bg-[#2d3748]", // Charcoal Slate
-      buttonBg: "bg-[#e2e8f0] hover:bg-white",
-      buttonTextBg: "text-[#2d3748]",
+      bgColor: "bg-[#4D4040]", // Deep Espresso Cocoa
+      buttonBg: "bg-[#F9FBF4] hover:bg-white",
+      buttonTextBg: "text-[#4D4040]",
       title: {
         en: "Smart Devices & Tech Accessories",
         fr: "Technologie & Accessoires Connectés",
@@ -2768,9 +2793,9 @@ export default function App() {
       ]
     },
     {
-      bgColor: "bg-[#78350f]", // Warm Amber/Honey / Autumn Gold
-      buttonBg: "bg-[#fef3c7] hover:bg-white",
-      buttonTextBg: "text-[#78350f]",
+      bgColor: "bg-[#806477]", // Velvet Plum Aubergine
+      buttonBg: "bg-[#F9FBF4] hover:bg-white",
+      buttonTextBg: "text-[#806477]",
       title: {
         en: "Sidr Honey & Organic Wellness",
         fr: "Miel Pur de Sidr & Bien-être",
@@ -2811,18 +2836,15 @@ export default function App() {
     }
   ]);
 
-  const sessionBrandTheme = YUME_BRAND_PALETTE[SESSION_YUME_COLOR_INDEX] || YUME_BRAND_PALETTE[0];
+  const { resolvedGroups: brandIdentityGroups } = useBrandIdentityColorEngine(darkMode);
+  const sessionBrandTheme = useMemo(
+    () => getSlidePairingForHex(brandIdentityGroups.header.effectiveHex),
+    [brandIdentityGroups.header.effectiveHex]
+  );
   const rawSlideColor = sessionBrandTheme.hex;
   const currentSlideColor = darkMode ? "#1e293b" : rawSlideColor;
-
-  // Seamless, zero-delay color synchronization across header and merchant space dashboard
-  // Color remains locked for the entire browsing session and only updates on page refresh or dark mode toggle
-  useEffect(() => {
-    const effectiveColor = darkMode ? "#0f172a" : rawSlideColor;
-    if (typeof document !== "undefined") {
-      document.documentElement.style.setProperty("--yume-theme-header-color", effectiveColor);
-    }
-  }, [rawSlideColor, darkMode]);
+  const headerContrastAccentColor =
+    !darkMode && sessionBrandTheme.isLight ? "#4D4040" : currentSlideColor;
 
   // Wishlist and favoriting mechanism loaded/synced with local storage
   const handleSaveSlideProduct = (name: string, imgUrl: string) => {
@@ -4352,6 +4374,172 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("dz_merchant_story_toasts", JSON.stringify(merchantToastQueue));
   }, [merchantToastQueue]);
+
+  const [visitorIpKey, setVisitorIpKey] = useState<string>(() => loadCachedVisitorIpKey());
+
+  const [stockNotifyRequests, setStockNotifyRequests] = useState<StockNotifyRequest[]>(() =>
+    loadStockNotifyRequests()
+  );
+
+  useEffect(() => {
+    saveStockNotifyRequests(stockNotifyRequests);
+  }, [stockNotifyRequests]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/stock-notify/requests")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data?.ok) return;
+        const serverIpKey = String(data.ipKey || "").trim();
+        if (serverIpKey) {
+          setVisitorIpKey(serverIpKey);
+          saveCachedVisitorIpKey(serverIpKey);
+        }
+        if (Array.isArray(data.requests)) {
+          setStockNotifyRequests((prev) => {
+            const serverList = normalizeStockNotifyRequests(data.requests, serverIpKey);
+            const serverById = new Set(serverList.map((r) => r.id));
+            const normalizedLocal = normalizeStockNotifyRequests(prev, serverIpKey);
+            // Keep local-only entries that are not already present on server (e.g., created offline)
+            const localOnly = normalizedLocal.filter(
+              (localItem) =>
+                localItem.status === "pending" &&
+                !serverById.has(localItem.id) &&
+                !serverList.some(
+                  (sItem) =>
+                    sItem.storeId === localItem.storeId &&
+                    sItem.productId === localItem.productId &&
+                    (sItem.variantId || sItem.variantLabel || "") ===
+                      (localItem.variantId || localItem.variantLabel || "")
+                )
+            );
+            return [...serverList, ...localOnly];
+          });
+        } else if (serverIpKey) {
+          setStockNotifyRequests((prev) => normalizeStockNotifyRequests(prev, serverIpKey));
+        }
+      })
+      .catch(() => {
+        // Offline / client-only fallback already handled by loadStockNotifyRequests()
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const pendingStockNotifyCount = useMemo(
+    () => stockNotifyRequests.filter((req) => req.status === "pending").length,
+    [stockNotifyRequests]
+  );
+
+  const handleResolveStockNotifyRequest = (target: {
+    id?: string;
+    storeId?: string;
+    productId?: string;
+    variantId?: string;
+    nextStatus?: "resolved" | "dismissed";
+  }) => {
+    setStockNotifyRequests((prev) => resolveStockNotifyRequests(prev, target));
+    fetch("/api/stock-notify/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(target),
+    }).catch(() => {
+      // Ignore network errors cleanly
+    });
+  };
+
+  // --- Store Reports, Registered/Guest Mute & Block Preferences ---
+  const [storeReports, setStoreReports] = useState<StoreReportRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem("yume_store_reports");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("yume_store_reports", JSON.stringify(storeReports));
+    } catch {
+      // ignore
+    }
+  }, [storeReports]);
+
+  useEffect(() => {
+    fetch("/api/db/storeReports")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.documents) && data.documents.length > 0) {
+          setStoreReports(data.documents);
+        }
+      })
+      .catch(() => {
+        // Offline / local fallback
+      });
+  }, []);
+
+  const [userStoreMutes, setUserStoreMutes] = useState<UserStoreMuteRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem("yume_guest_store_mutes");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((m) => isStoreCurrentlyMuted(m));
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  const [userStoreBlocks, setUserStoreBlocks] = useState<UserStoreBlockRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem("yume_guest_store_blocks");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("yume_guest_store_mutes", JSON.stringify(userStoreMutes));
+    } catch {
+      // ignore
+    }
+  }, [userStoreMutes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("yume_guest_store_blocks", JSON.stringify(userStoreBlocks));
+    } catch {
+      // ignore
+    }
+  }, [userStoreBlocks]);
+
+  // Periodic automatic expiration check for Mute Store durations
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setUserStoreMutes((prev) => {
+        const now = Date.now();
+        const active = prev.filter((m) => isStoreCurrentlyMuted(m, now));
+        return active.length === prev.length ? prev : active;
+      });
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [deletedStoryIdsByStore, setDeletedStoryIdsByStore] = useState<Record<string, string[]>>(() => {
     try {
@@ -6046,6 +6234,12 @@ export default function App() {
 
       // 2. Close Modals: Escape Key
       if (e.key === "Escape") {
+        if (
+          document.getElementById("store-profile-more-options-card") ||
+          document.querySelector('[aria-modal="true"]')
+        ) {
+          return;
+        }
         setSelectedProduct(null);
         setSelectedStore(null);
         setIsPathSelectionOpen(false);
@@ -6695,10 +6889,12 @@ export default function App() {
     });
 
     // Apply marketplaceSortOption
-    if (marketplaceSortOption === "priceAsc") {
+    if (marketplaceSortOption === "priceAsc" || marketplaceSortOption === "price_asc") {
       list.sort((a, b) => (a.product.price || 0) - (b.product.price || 0));
-    } else if (marketplaceSortOption === "priceDesc") {
+    } else if (marketplaceSortOption === "priceDesc" || marketplaceSortOption === "price_desc") {
       list.sort((a, b) => (b.product.price || 0) - (a.product.price || 0));
+    } else if (marketplaceSortOption === "rating") {
+      list.sort((a, b) => (b.product.rating || 0) - (a.product.rating || 0));
     } else if (marketplaceSortOption === "newest") {
       list.sort((a, b) => String(b.product.id || "").localeCompare(String(a.product.id || "")));
     } else if (marketplaceSortOption === "favorites") {
@@ -6723,7 +6919,7 @@ export default function App() {
     }
 
     return list;
-  }, [unifiedSearchResults, marketplaceSortOption, wishlist]);
+  }, [unifiedSearchResults, marketplaceSortOption, wishlist, productResultDisplayMode]);
 
   // Marketplace pagination calculations: 130-150 products per page on the main page (default 140 = 20 rows of 7 items)
   const marketplacePageSize = marketplaceDesktopPageSize >= 130 && marketplaceDesktopPageSize <= 150 ? marketplaceDesktopPageSize : 140;
@@ -7349,6 +7545,12 @@ export default function App() {
       }
 
       if (itemStore) {
+        if (userStoreBlocks.some((b) => b.storeId === itemStore!.id)) {
+          alert(
+            `You have blocked ${itemStore.name}. Unblock this store from More Options if you wish to place a new order.`
+          );
+          return;
+        }
         const checkoutGate = canStoreAcceptNewCheckout(itemStore);
         if (!checkoutGate.allowed) {
           alert(checkoutGate.reason || "This store is currently restricted from accepting new orders.");
@@ -7570,26 +7772,908 @@ export default function App() {
   const selectedStorePlanPermissions = useStorePlanPermissions(selectedStore);
   const myStorePlanPermissions = useStorePlanPermissions(myStore);
 
+  const selectedStoreDockSettings = useMemo(
+    () => normalizeStoreDockSettings(selectedStore?.designSettings?.dockSettings),
+    [selectedStore]
+  );
+
+  // Sync Registered User Mute & Block Preferences from backend when logged in
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    fetch("/api/user/store-preferences", {
+      headers: {
+        "x-yume-user-id": String((currentUser as any).id || currentUser.email),
+        "x-yume-user-email": currentUser.email,
+        "x-yume-user-role": currentUser.role || "Customer",
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.ok || !data.authenticated) return;
+        if (Array.isArray(data.mutes) && data.mutes.length > 0) {
+          setUserStoreMutes(data.mutes);
+        }
+        if (Array.isArray(data.blocks) && data.blocks.length > 0) {
+          setUserStoreBlocks(data.blocks);
+        }
+      })
+      .catch(() => {
+        // Fallback to local state
+      });
+  }, [currentUser]);
+
+  const resolvedCurrentUserOwnedStoreIds = useMemo(
+    () => resolveMerchantOwnedStoreIds(currentUser, stores, myStore),
+    [currentUser, stores, myStore]
+  );
+
+  const isStrictOwnerOfSelectedStore = useMemo(() => {
+    if (!selectedStore || !currentUser) return false;
+    return verifyStrictStoreOwnership({
+      user: {
+        id: (currentUser as any).id || currentUser.email,
+        name: currentUser.name,
+        email: currentUser.email,
+        role: currentUser.role,
+        storeName: currentUser.storeName,
+        ownedStoreIds: resolvedCurrentUserOwnedStoreIds,
+      },
+      targetStore: selectedStore,
+      activeStaffMemberId: null,
+    }).allowed;
+  }, [currentUser, selectedStore, resolvedCurrentUserOwnedStoreIds]);
+
+  const canManageStoriesForSelectedStore = useMemo(() => {
+    if (!selectedStore || !currentUser) return false;
+    let persistedTeamMembers: Array<{ id?: string; email?: string; role?: string; status?: string }> = [];
+    try {
+      const rawTeam = localStorage.getItem(`yume_store_team_${selectedStore.id}`);
+      if (rawTeam) {
+        const parsed = JSON.parse(rawTeam);
+        if (Array.isArray(parsed)) {
+          persistedTeamMembers = parsed;
+        }
+      }
+    } catch {
+      // ignore localStorage read errors
+    }
+    return canUserManageStoreStories({
+      user: {
+        id: (currentUser as any).id || currentUser.email,
+        name: currentUser.name,
+        email: currentUser.email,
+        role: currentUser.role,
+        storeId: currentUser.storeId,
+        storeName: currentUser.storeName,
+        ownedStoreIds: resolvedCurrentUserOwnedStoreIds,
+      },
+      targetStore: selectedStore,
+      extraTeamMembers: persistedTeamMembers,
+      activeStaffMemberId: null,
+    });
+  }, [currentUser, selectedStore, resolvedCurrentUserOwnedStoreIds]);
+
+  const selectedStoreMuteRecord = useMemo(() => {
+    if (!selectedStore) return null;
+    const found = userStoreMutes.find((m) => m.storeId === selectedStore.id);
+    return found && isStoreCurrentlyMuted(found) ? found : null;
+  }, [selectedStore, userStoreMutes]);
+
+  const isSelectedStoreBlocked = useMemo(() => {
+    if (!selectedStore) return false;
+    return userStoreBlocks.some((b) => b.storeId === selectedStore.id);
+  }, [selectedStore, userStoreBlocks]);
+
+  const handleConfirmMuteSelectedStore = useCallback(
+    (params: {
+      presetId: MuteDurationPresetId;
+      expiresAt: string | null;
+      durationLabel: string;
+    }) => {
+      if (!selectedStore) return;
+      const newRec: UserStoreMuteRecord = {
+        storeId: selectedStore.id,
+        mutedAt: new Date().toISOString(),
+        expiresAt: params.expiresAt,
+        presetId: params.presetId,
+        durationLabel: params.durationLabel,
+      };
+      setUserStoreMutes((prev) => [
+        newRec,
+        ...prev.filter((m) => m.storeId !== selectedStore.id && isStoreCurrentlyMuted(m)),
+      ]);
+      if (currentUser?.email) {
+        fetch(`/api/user/store-mutes/${encodeURIComponent(selectedStore.id)}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "x-yume-user-id": String((currentUser as any).id || currentUser.email),
+            "x-yume-user-email": currentUser.email,
+            "x-yume-user-role": currentUser.role || "Customer",
+          },
+          body: JSON.stringify(newRec),
+        }).catch(() => {});
+      }
+    },
+    [selectedStore, currentUser]
+  );
+
+  const handleUnmuteSelectedStore = useCallback(() => {
+    if (!selectedStore) return;
+    setUserStoreMutes((prev) => prev.filter((m) => m.storeId !== selectedStore.id));
+    if (currentUser?.email) {
+      fetch(`/api/user/store-mutes/${encodeURIComponent(selectedStore.id)}`, {
+        method: "DELETE",
+        headers: {
+          "x-yume-user-id": String((currentUser as any).id || currentUser.email),
+          "x-yume-user-email": currentUser.email,
+          "x-yume-user-role": currentUser.role || "Customer",
+        },
+      }).catch(() => {});
+    }
+  }, [selectedStore, currentUser]);
+
+  const handleConfirmBlockSelectedStore = useCallback(() => {
+    if (!selectedStore || isStrictOwnerOfSelectedStore) return;
+    const newBlock: UserStoreBlockRecord = {
+      storeId: selectedStore.id,
+      blockedAt: new Date().toISOString(),
+    };
+    setUserStoreBlocks((prev) => [
+      newBlock,
+      ...prev.filter((b) => b.storeId !== selectedStore.id),
+    ]);
+    if (activeChatStoreId === selectedStore.id) {
+      setActiveChatStoreId(null);
+    }
+    if (currentUser?.email) {
+      fetch(`/api/user/store-blocks/${encodeURIComponent(selectedStore.id)}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-yume-user-id": String((currentUser as any).id || currentUser.email),
+          "x-yume-user-email": currentUser.email,
+          "x-yume-user-role": currentUser.role || "Customer",
+        },
+        body: JSON.stringify(newBlock),
+      }).catch(() => {});
+    }
+  }, [selectedStore, isStrictOwnerOfSelectedStore, activeChatStoreId, currentUser]);
+
+  const handleUnblockSelectedStore = useCallback(() => {
+    if (!selectedStore) return;
+    setUserStoreBlocks((prev) => prev.filter((b) => b.storeId !== selectedStore.id));
+    if (currentUser?.email) {
+      fetch(`/api/user/store-blocks/${encodeURIComponent(selectedStore.id)}`, {
+        method: "DELETE",
+        headers: {
+          "x-yume-user-id": String((currentUser as any).id || currentUser.email),
+          "x-yume-user-email": currentUser.email,
+          "x-yume-user-role": currentUser.role || "Customer",
+        },
+      }).catch(() => {});
+    }
+  }, [selectedStore, currentUser]);
+
+  const handleSaveSelectedStoreDockSettings = useCallback(
+    async (nextSettings: StoreDockSettings) => {
+      if (!selectedStore || !isStrictOwnerOfSelectedStore) {
+        return;
+      }
+      const normalized = normalizeStoreDockSettings({
+        ...nextSettings,
+        updatedAt: new Date().toISOString(),
+        updatedByOwnerEmail: currentUser?.email || undefined,
+      });
+
+      // Immediately update public store state in memory & localStorage
+      setStores((prev) =>
+        prev.map((s) =>
+          s.id === selectedStore.id
+            ? {
+                ...s,
+                designSettings: {
+                  ...(s.designSettings || {}),
+                  dockSettings: normalized,
+                },
+              }
+            : s
+        )
+      );
+      setSelectedStore((prev) =>
+        prev && prev.id === selectedStore.id
+          ? {
+              ...prev,
+              designSettings: {
+                ...(prev.designSettings || {}),
+                dockSettings: normalized,
+              },
+            }
+          : prev
+      );
+
+      // Persist on server with strict owner verification headers
+      try {
+        await fetch(`/api/stores/${encodeURIComponent(selectedStore.id)}/dock-settings`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "x-yume-user-id": String((currentUser as any)?.id || currentUser?.email || ""),
+            "x-yume-user-email": String(currentUser?.email || ""),
+            "x-yume-user-role": String(currentUser?.role || "Merchant"),
+            "x-yume-user-store-name": String(currentUser?.storeName || myStore?.name || ""),
+            "x-yume-owned-store-ids": resolvedCurrentUserOwnedStoreIds.join(","),
+          },
+          body: JSON.stringify({
+            dockSettings: normalized,
+            storeSnapshot: selectedStore,
+          }),
+        });
+      } catch {
+        // Local persistence already updated
+      }
+    },
+    [selectedStore, isStrictOwnerOfSelectedStore, currentUser, myStore, resolvedCurrentUserOwnedStoreIds]
+  );
+
+  // --- Partner Picks Global State, Context-Scoped Rotation & API Integration ---
+  const [partnerPicksGlobalConfig, setPartnerPicksGlobalConfig] =
+    useState<PartnerPicksGlobalConfig>(() => createDefaultPartnerPicksGlobalConfig());
+  const [partnerPicksProfilesByStoreId, setPartnerPicksProfilesByStoreId] = useState<
+    Record<string, Partial<MerchantPartnerPicksProfile>>
+  >({});
+  const [partnerPicksPartnerships, setPartnerPicksPartnerships] = useState<
+    PartnerPicksPartnership[]
+  >([]);
+  const [partnerPicksPlacements, setPartnerPicksPlacements] = useState<
+    PartnerPickProductPlacement[]
+  >([]);
+  const [partnerPicksExposureLedgers, setPartnerPicksExposureLedgers] = useState<
+    Record<string, PartnerPicksBidirectionalExposureLedger>
+  >({});
+  const [partnerPicksAnalyticsByChannel, setPartnerPicksAnalyticsByChannel] = useState<
+    Record<
+      PartnerPickChannelId,
+      {
+        channelId: PartnerPickChannelId;
+        opportunities: number;
+        impressions: number;
+        uniqueVisitors: number;
+        clicks: number;
+        skips: number;
+        originalProductOpens: number;
+        ctrPercent: number;
+        totalExposureDurationSeconds: number;
+      }
+    >
+  >({} as any);
+  const [partnerPicksRequestModalTargetStore, setPartnerPicksRequestModalTargetStore] =
+    useState<MerchantStore | null>(null);
+  const [partnerPicksInitialPartnershipId, setPartnerPicksInitialPartnershipId] =
+    useState<string | null>(null);
+  const [partnerPicksUserFatigueState, setPartnerPicksUserFatigueState] =
+    useState<UserPartnerPicksFatigueState>(() =>
+      createInitialUserPartnerPicksFatigueState("visitor_session")
+    );
+  const [partnerPicksRotationEpochByStoreId, setPartnerPicksRotationEpochByStoreId] =
+    useState<Record<string, number>>({});
+  const partnerPicksRotationContextCacheRef = useRef<
+    Record<
+      string,
+      {
+        context: ActiveHostPartnerRotationContext;
+        fairnessScores: PartnerCandidateFairnessScore[];
+      }
+    >
+  >({});
+  const partnerPickSlideEnteredAtRef = useRef<number>(Date.now());
+
+  const refreshPartnerPicksBootstrap = useCallback(async () => {
+    try {
+      const res = await fetch("/api/partner-picks/bootstrap");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.globalConfig) {
+        setPartnerPicksGlobalConfig(normalizePartnerPicksGlobalConfig(data.globalConfig));
+      }
+      const incomingProfiles = data?.profilesByStoreId || data?.profiles;
+      if (incomingProfiles && typeof incomingProfiles === "object") {
+        setPartnerPicksProfilesByStoreId(incomingProfiles);
+      }
+      if (Array.isArray(data?.partnerships)) {
+        setPartnerPicksPartnerships(data.partnerships);
+      }
+      if (Array.isArray(data?.placements)) {
+        setPartnerPicksPlacements(data.placements);
+      }
+      const incomingLedgers = data?.exposureLedgers || data?.exposureLedger;
+      if (incomingLedgers && typeof incomingLedgers === "object") {
+        setPartnerPicksExposureLedgers(incomingLedgers);
+      }
+      if (
+        data?.analyticsBreakdownByChannel &&
+        typeof data.analyticsBreakdownByChannel === "object"
+      ) {
+        setPartnerPicksAnalyticsByChannel(data.analyticsBreakdownByChannel);
+      }
+    } catch {
+      // Graceful fallback to default in-memory config
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPartnerPicksBootstrap();
+    const onUpdated = () => {
+      refreshPartnerPicksBootstrap();
+    };
+    window.addEventListener("yume-partner-picks-updated", onUpdated);
+    return () => {
+      window.removeEventListener("yume-partner-picks-updated", onUpdated);
+    };
+  }, [refreshPartnerPicksBootstrap]);
+
+  // Increment host-store refresh epoch whenever user opens or revisits a store profile
+  useEffect(() => {
+    if (!selectedStore?.id) return;
+    setPartnerPicksRotationEpochByStoreId((prev) => ({
+      ...prev,
+      [selectedStore.id]: (prev[selectedStore.id] || 0) + 1,
+    }));
+  }, [selectedStore?.id]);
+
+  const storesByIdMap = useMemo(() => {
+    const map: Record<string, MerchantStore> = {};
+    for (const st of stores) {
+      if (st?.id) map[st.id] = st;
+    }
+    return map;
+  }, [stores]);
+
+  const trackPartnerPickEvent = useCallback(
+    (payload: {
+      channelId: PartnerPickChannelId;
+      eventType: PartnerPicksChannelAnalyticsEvent["eventType"];
+      partnershipId: string;
+      placementId: string;
+      sourceStoreId: string;
+      hostStoreId: string;
+      productId: string;
+      exposureDurationMs?: number;
+    }) => {
+      const eventRecord: PartnerPicksChannelAnalyticsEvent = {
+        id: `ppe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        idempotencyKey: `ik_${payload.channelId}_${payload.placementId}_${payload.eventType}_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        visitorHash: visitorIpKey || "visitor_session",
+        rotationEpoch: partnerPicksRotationEpochByStoreId[payload.hostStoreId] || 1,
+        ...payload,
+      };
+      fetch("/api/partner-picks/analytics/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ events: [eventRecord] }),
+      }).catch(() => {});
+    },
+    [visitorIpKey, partnerPicksRotationEpochByStoreId]
+  );
+
+  const openPartnerPickOriginalProduct = useCallback(
+    (params: {
+      product: Product;
+      sourceStore: MerchantStore;
+      hostStoreId: string;
+      channelId: PartnerPickChannelId;
+      placementId: string;
+      partnershipId: string;
+    }) => {
+      const { product, sourceStore, hostStoreId, channelId, placementId, partnershipId } =
+        params;
+      trackPartnerPickEvent({
+        channelId,
+        eventType: "click",
+        partnershipId,
+        placementId,
+        sourceStoreId: sourceStore.id,
+        hostStoreId,
+        productId: product.id,
+      });
+      trackPartnerPickEvent({
+        channelId,
+        eventType: "original_product_open",
+        partnershipId,
+        placementId,
+        sourceStoreId: sourceStore.id,
+        hostStoreId,
+        productId: product.id,
+      });
+      setPartnerPicksUserFatigueState((prev) =>
+        recordUserPartnerPickProductClickOrView({
+          state: prev,
+          productId: product.id,
+        })
+      );
+      // Critical cross-store Reels/Stories navigation fix: clear reelsBackTarget so
+      // closing overlays never snaps the shopper back to the host store's old product!
+      setReelsBackTarget(null);
+      setActiveReelsStore(null);
+      setActiveStoryStore(null);
+      setSelectedStore(sourceStore);
+      setSelectedProduct(product);
+    },
+    [trackPartnerPickEvent]
+  );
+
+  const resolvePartnerPicksForHostChannel = useCallback(
+    (
+      hostStore: MerchantStore | null | undefined,
+      channelId: PartnerPickChannelId,
+      currentProductGridPage = 1
+    ): ResolvedChannelPartnerPickSlot[] => {
+      if (!hostStore || !hostStore.id) return [];
+      const epoch = partnerPicksRotationEpochByStoreId[hostStore.id] || 1;
+      const cacheKey = `${hostStore.id}::epoch_${epoch}::${partnerPicksPlacements.length}::${partnerPicksPartnerships.length}::${partnerPicksGlobalConfig.updatedAtIso}`;
+      let cached = partnerPicksRotationContextCacheRef.current[cacheKey];
+      if (!cached) {
+        cached = resolveActiveHostPartnerRotationContext({
+          globalConfig: partnerPicksGlobalConfig,
+          hostStore,
+          allStoresById: storesByIdMap,
+          profilesByStoreId: partnerPicksProfilesByStoreId,
+          allPartnerships: partnerPicksPartnerships,
+          allPlacements: partnerPicksPlacements,
+          exposureLedgersByPartnershipId: partnerPicksExposureLedgers,
+          storiesEnabledMap: storiesEnabledByStore,
+          rotationEpoch: epoch,
+        });
+        partnerPicksRotationContextCacheRef.current[cacheKey] = cached;
+      }
+      return resolveChannelPartnerPicksForHostContext({
+        globalConfig: partnerPicksGlobalConfig,
+        activeContext: cached.context,
+        channelId,
+        hostStore,
+        allStoresById: storesByIdMap,
+        profilesByStoreId: partnerPicksProfilesByStoreId,
+        allPartnerships: partnerPicksPartnerships,
+        allPlacements: partnerPicksPlacements,
+        fairnessScores: cached.fairnessScores,
+        userFatigueState: partnerPicksUserFatigueState,
+        storiesEnabledMap: storiesEnabledByStore,
+        currentProductGridPage,
+      });
+    },
+    [
+      partnerPicksGlobalConfig,
+      partnerPicksProfilesByStoreId,
+      partnerPicksPartnerships,
+      partnerPicksPlacements,
+      partnerPicksExposureLedgers,
+      partnerPicksUserFatigueState,
+      partnerPicksRotationEpochByStoreId,
+      storesByIdMap,
+      storiesEnabledByStore,
+    ]
+  );
+
+  const handleSavePartnerPicksProfile = useCallback(
+    async (storeId: string, profile: Partial<MerchantPartnerPicksProfile>) => {
+      setPartnerPicksProfilesByStoreId((prev) => ({
+        ...prev,
+        [storeId]: { ...(prev[storeId] || {}), ...profile, storeId },
+      }));
+      try {
+        const res = await fetch(`/api/partner-picks/profile/${encodeURIComponent(storeId)}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${storeId}`),
+            "x-actor-role": currentUser?.role || "Merchant",
+          },
+          body: JSON.stringify({ profile }),
+        });
+        if (res.ok) {
+          await refreshPartnerPicksBootstrap();
+        }
+      } catch {}
+    },
+    [currentUser, refreshPartnerPicksBootstrap]
+  );
+
+  const handleSendPartnerPicksRequest = useCallback(
+    async (payload: {
+      initiatorStoreId: string;
+      targetStoreId: string;
+      durationDays: number;
+      proposedChannels: Record<PartnerPickChannelId, boolean>;
+      requestMessage: string;
+    }) => {
+      const res = await fetch("/api/partner-picks/partnerships/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${payload.initiatorStoreId}`),
+          "x-actor-role": currentUser?.role || "Merchant",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Could not send Partner Picks request.");
+      }
+      const data = await res.json();
+      await refreshPartnerPicksBootstrap();
+      const initiatorName = storesByIdMap[payload.initiatorStoreId]?.name || payload.initiatorStoreId;
+      setMerchantToastQueue((prev) => [
+        {
+          id: `pp_req_${Date.now()}`,
+          storeId: payload.targetStoreId,
+          type: "dm",
+          message: `New Partner Picks request from ${initiatorName} (${payload.durationDays} days).`,
+          createdAt: Date.now(),
+        },
+        ...prev,
+      ]);
+      if (data?.partnership?.id) {
+        setPartnerPicksInitialPartnershipId(data.partnership.id);
+      }
+    },
+    [currentUser, refreshPartnerPicksBootstrap, storesByIdMap]
+  );
+
+  const handleRespondPartnerPicksPartnership = useCallback(
+    async (
+      partnershipId: string,
+      actingStoreId: string,
+      decision: "ACCEPT" | "REJECT" | "CANCEL"
+    ) => {
+      const res = await fetch(
+        `/api/partner-picks/partnerships/${encodeURIComponent(partnershipId)}/respond`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${actingStoreId}`),
+            "x-actor-role": currentUser?.role || "Merchant",
+          },
+          body: JSON.stringify({ actingStoreId, decision }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Could not update partnership status.");
+      }
+      await refreshPartnerPicksBootstrap();
+    },
+    [currentUser, refreshPartnerPicksBootstrap]
+  );
+
+  const handleProposePartnerPickPlacement = useCallback(
+    async (payload: {
+      partnershipId: string;
+      sourceStoreId: string;
+      hostStoreId: string;
+      productId: string;
+      channelId: PartnerPickChannelId;
+      proposedOptions: PartnerPickProposedOption[];
+    }) => {
+      const res = await fetch("/api/partner-picks/placements/propose", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${payload.sourceStoreId}`),
+          "x-actor-role": currentUser?.role || "Merchant",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Could not propose Partner Pick placement.");
+      }
+      await refreshPartnerPicksBootstrap();
+      const sourceName = storesByIdMap[payload.sourceStoreId]?.name || payload.sourceStoreId;
+      setMerchantToastQueue((prev) => [
+        {
+          id: `pp_prop_${Date.now()}`,
+          storeId: payload.hostStoreId,
+          type: "dm",
+          message: `${sourceName} proposed a Partner Picks placement on ${payload.channelId}.`,
+          createdAt: Date.now(),
+        },
+        ...prev,
+      ]);
+    },
+    [currentUser, refreshPartnerPicksBootstrap, storesByIdMap]
+  );
+
+  const handleHostSelectPartnerPickPlacement = useCallback(
+    async (
+      placementId: string,
+      decision: "SELECT" | "REJECT",
+      selectedOptionId?: string | null,
+      note?: string
+    ) => {
+      const res = await fetch(
+        `/api/partner-picks/placements/${encodeURIComponent(placementId)}/host-select`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${myStore?.id || "store_1"}`),
+            "x-actor-role": currentUser?.role || "Merchant",
+          },
+          body: JSON.stringify({
+            hostStoreId: myStore?.id,
+            decision,
+            selectedOptionId: selectedOptionId || undefined,
+            note,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Could not submit host selection.");
+      }
+      await refreshPartnerPicksBootstrap();
+    },
+    [currentUser, myStore?.id, refreshPartnerPicksBootstrap]
+  );
+
+  const handleProposerConfirmPartnerPickPlacement = useCallback(
+    async (placementId: string, decision: "APPROVE" | "REJECT", note?: string) => {
+      const res = await fetch(
+        `/api/partner-picks/placements/${encodeURIComponent(placementId)}/proposer-confirm`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${myStore?.id || "store_1"}`),
+            "x-actor-role": currentUser?.role || "Merchant",
+          },
+          body: JSON.stringify({
+            sourceStoreId: myStore?.id,
+            decision,
+            note,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Could not finalize placement approval.");
+      }
+      await refreshPartnerPicksBootstrap();
+    },
+    [currentUser, myStore?.id, refreshPartnerPicksBootstrap]
+  );
+
+  const handleRemovePartnerPickPlacement = useCallback(
+    async (placementId: string) => {
+      const res = await fetch(
+        `/api/partner-picks/placements/${encodeURIComponent(placementId)}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": String((currentUser as any)?.id || currentUser?.email || `owner_${myStore?.id || "store_1"}`),
+            "x-actor-role": currentUser?.role || "Merchant",
+          },
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Could not remove placement.");
+      }
+      await refreshPartnerPicksBootstrap();
+    },
+    [currentUser, myStore?.id, refreshPartnerPicksBootstrap]
+  );
+
+  const handleViewStoreFromPartnerPicks = useCallback(
+    (targetStore: MerchantStore) => {
+      setSelectedStore(targetStore);
+      setActiveTab("marketplace");
+    },
+    []
+  );
+
+  const handleSavePartnerPicksAdminConfig = useCallback(
+    async (nextConfig: PartnerPicksGlobalConfig, reason?: string) => {
+      const normalized = normalizePartnerPicksGlobalConfig(nextConfig);
+      setPartnerPicksGlobalConfig(normalized);
+      try {
+        await fetch("/api/admin/partner-picks/config", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": adminUsername || "admin",
+            "x-actor-role": "PlatformAdmin",
+          },
+          body: JSON.stringify({ config: normalized, reason }),
+        });
+        await refreshPartnerPicksBootstrap();
+      } catch {}
+    },
+    [adminUsername, refreshPartnerPicksBootstrap]
+  );
+
+  const handlePartnerPicksAdminGovernance = useCallback(
+    async (payload: {
+      targetType: "partnership" | "placement";
+      targetId: string;
+      action: "SUSPEND" | "REINSTATE";
+      reason: string;
+    }) => {
+      try {
+        await fetch("/api/admin/partner-picks/governance", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-actor-id": adminUsername || "admin",
+            "x-actor-role": "PlatformAdmin",
+          },
+          body: JSON.stringify(payload),
+        });
+        await refreshPartnerPicksBootstrap();
+      } catch {}
+    },
+    [adminUsername, refreshPartnerPicksBootstrap]
+  );
+
+  // Partner Picks entry-point state & handler (wired from More Options slot #2)
+  const [, setPartnerPicksEntryContext] = useState<PartnerPicksEntryContext | null>(null);
+  const handleOpenPartnerPicksEntryPoint = useCallback(
+    (entryContext: PartnerPicksEntryContext) => {
+      setPartnerPicksEntryContext(entryContext);
+      if (entryContext.isStrictOwner) {
+        setSelectedStore(null);
+        setActiveTab("merchant");
+        setMerchantSubTab("partner-picks");
+        return true;
+      }
+      const target =
+        storesByIdMap[entryContext.storeId] || selectedStore || null;
+      if (target) {
+        setPartnerPicksRequestModalTargetStore(target);
+        return true;
+      }
+      return false;
+    },
+    [selectedStore, storesByIdMap]
+  );
+
+  const handleSubmitSelectedStoreReport = useCallback(
+    async (params: { primaryReason: ReportStoreReason; additionalDetails: string }) => {
+      if (!selectedStore) {
+        return { ok: false, error: "Store not found." };
+      }
+      const reporterKey = currentUser?.email || visitorIpKey || "anonymous_visitor";
+      const localSubmission = createStoreReportSubmission({
+        existingReports: storeReports,
+        storeId: selectedStore.id,
+        storeName: selectedStore.name,
+        storeSlug: selectedStore.slug,
+        storeLogo: selectedStore.logo,
+        storeWilaya: selectedStore.wilaya,
+        primaryReason: params.primaryReason,
+        additionalDetails: params.additionalDetails,
+        reporterKey,
+        isReporterOwnerOfTargetStore: isStrictOwnerOfSelectedStore,
+      });
+
+      if (!localSubmission.ok || !localSubmission.report) {
+        return { ok: false, error: localSubmission.error };
+      }
+
+      setStoreReports(localSubmission.nextReports);
+
+      try {
+        await fetch("/api/store-reports", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(currentUser?.email
+              ? {
+                  "x-yume-user-id": String((currentUser as any).id || currentUser.email),
+                  "x-yume-user-email": currentUser.email,
+                  "x-yume-user-role": currentUser.role || "Customer",
+                }
+              : {}),
+          },
+          body: JSON.stringify({
+            storeId: selectedStore.id,
+            storeName: selectedStore.name,
+            storeSlug: selectedStore.slug,
+            storeLogo: selectedStore.logo,
+            storeWilaya: selectedStore.wilaya,
+            primaryReason: params.primaryReason,
+            additionalDetails: params.additionalDetails,
+          }),
+        });
+      } catch {
+        // Local state already updated
+      }
+
+      return { ok: true };
+    },
+    [selectedStore, currentUser, visitorIpKey, storeReports, isStrictOwnerOfSelectedStore]
+  );
+
+  const handleAdminUpdateStoreReport = useCallback(
+    async (
+      reportId: string,
+      updates: {
+        status?: StoreReportStatus;
+        priority?: StoreReportPriority;
+        internalNote?: string;
+      }
+    ) => {
+      setStoreReports((prev) =>
+        prev.map((rpt) =>
+          rpt.id === reportId
+            ? applyAdminReportUpdate({
+                report: rpt,
+                actorName: adminUsername || "Platform Admin",
+                actorRole: "Super Admin",
+                nextStatus: updates.status,
+                nextPriority: updates.priority,
+                newInternalNote: updates.internalNote,
+              })
+            : rpt
+        )
+      );
+
+      try {
+        await fetch(`/api/admin/store-reports/${encodeURIComponent(reportId)}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updates),
+        });
+      } catch {
+        // Local state already updated
+      }
+    },
+    [adminUsername]
+  );
+
   useEffect(() => {
     const ps = selectedStorePlanPermissions.profileStore;
+    const dockNav = selectedStoreDockSettings.visibility.navigation;
     const isTabAllowed =
-      (profileActiveTab === "products" && ps.products.enabled) ||
-      (profileActiveTab === "reels" && ps.reels.enabled) ||
-      (profileActiveTab === "picks" && ps.picks.enabled) ||
-      (profileActiveTab === "reviews" && ps.reviews.enabled) ||
-      (profileActiveTab === "saved" && ps.saved.enabled) ||
-      (profileActiveTab === "deals" && ps.deals.enabled) ||
+      profileActiveTab === "products" ||
+      (profileActiveTab === "reels" && ps.reels.enabled && dockNav.reels) ||
+      (profileActiveTab === "picks" && ps.picks.enabled && dockNav.picks) ||
+      (profileActiveTab === "reviews" && ps.reviews.enabled && dockNav.reviews) ||
+      (profileActiveTab === "saved" && ps.saved.enabled && dockNav.saved) ||
+      (profileActiveTab === "deals" && ps.deals.enabled && dockNav.deals) ||
       profileActiveTab === "history";
 
     if (!isTabAllowed) {
-      if (ps.products.enabled) setProfileActiveTab("products");
-      else if (ps.reels.enabled) setProfileActiveTab("reels");
-      else if (ps.picks.enabled) setProfileActiveTab("picks");
-      else if (ps.reviews.enabled) setProfileActiveTab("reviews");
-      else if (ps.saved.enabled) setProfileActiveTab("saved");
-      else if (ps.deals.enabled) setProfileActiveTab("deals");
+      setProfileActiveTab("products");
+      setProfileShowSavedOnly(false);
     }
-  }, [selectedStorePlanPermissions, profileActiveTab]);
+
+    if (!dockNav.compare && isCompareModalOpen) {
+      setIsCompareModalOpen(false);
+    }
+    if (!dockNav.filters && showUnifiedFiltersDropdown) {
+      setShowUnifiedFiltersDropdown(false);
+    }
+    if (!dockNav.layout && showDensityDropdown) {
+      setShowDensityDropdown(false);
+    }
+    if (!dockNav.search && profileSearchQuery) {
+      setProfileSearchQuery("");
+    }
+  }, [
+    selectedStorePlanPermissions,
+    selectedStoreDockSettings,
+    profileActiveTab,
+    isCompareModalOpen,
+    showUnifiedFiltersDropdown,
+    showDensityDropdown,
+    profileSearchQuery,
+  ]);
 
   // Keep currentUser storeName synchronized with the active myStore for merchants when not already set
   useEffect(() => {
@@ -8595,7 +9679,7 @@ export default function App() {
           } focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-400`}
           title={currentLanguage === "ar" ? "عرض المنتجات" : currentLanguage === "fr" ? "Afficher les produits" : "View Products"}
         >
-          <Package className={`w-3.5 h-3.5 shrink-0 ${productResultDisplayMode === "product_grid" ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-stone-400"}`} />
+          <ExpressCartIcon className={`w-3.5 h-3.5 shrink-0 ${productResultDisplayMode === "product_grid" ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-stone-400"}`} />
           <span className="inline font-semibold">{currentLanguage === "ar" ? "المنتجات" : currentLanguage === "fr" ? "Produits" : "Products"}</span>
         </button>
 
@@ -8667,224 +9751,329 @@ export default function App() {
           />
         </button>
 
-        {/* Filter Button */}
-        <div
-          ref={marketplaceFilterMenuRef}
-          className="relative shrink-0"
-        >
-          <button
-            type="button"
-            id="marketplace-filters-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isMarketplaceFilterMenuOpen) {
-                closeMarketplaceFilterMenu();
-              } else {
-                openMarketplaceFilterMenu();
+        {/* Sort & View Controls */}
+        {(() => {
+          const yumeAccent = darkMode
+            ? "#A66F78"
+            : sessionBrandTheme.isLight
+            ? "#4D4040"
+            : rawSlideColor;
+          const isCustomized =
+            marketplaceSortOption !== "popular" ||
+            (!showCommerceMap && (marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16));
+          const isActiveState = isMarketplaceFilterMenuOpen || isCustomized;
+
+          const spacingPresets = [
+            { id: "compact" as const, gap: 8, barWidth: "w-1", label_en: "Compact", label_ar: "مدمج", label_fr: "Compact" },
+            { id: "normal" as const, gap: 16, barWidth: "w-2.5", label_en: "Normal", label_ar: "عادي", label_fr: "Normal" },
+            { id: "spacious" as const, gap: 28, barWidth: "w-4", label_en: "Spacious", label_ar: "واسع", label_fr: "Spacieux" }
+          ];
+          const activeSpacingMatch = spacingPresets.find((s) => s.gap === marketplaceGridGap);
+          const spacingReadout = activeSpacingMatch
+            ? currentLanguage === "ar"
+              ? activeSpacingMatch.label_ar
+              : currentLanguage === "fr"
+              ? activeSpacingMatch.label_fr
+              : activeSpacingMatch.label_en
+            : `${marketplaceGridGap}px`;
+
+          const cardSizePresets = [
+            { id: "S", width: 160, bars: 5, label_en: "Compact", label_ar: "صغير", label_fr: "Petit" },
+            { id: "M", width: 208, bars: 4, label_en: "Standard", label_ar: "عادي", label_fr: "Moyen" },
+            { id: "L", width: 256, bars: 3, label_en: "Large", label_ar: "كبير", label_fr: "Grand" },
+            { id: "XL", width: 304, bars: 2, label_en: "Wide", label_ar: "واسع", label_fr: "Large" }
+          ];
+
+          const sortOptions = [
+            { id: "popular", label_en: "Most Popular", label_ar: "الأكثر شعبية", label_fr: "Les plus populaires" },
+            { id: "rating", label_en: "Highest Rated", label_ar: "الأعلى تقييماً", label_fr: "Mieux notés" },
+            { id: "priceAsc", label_en: "Price: Low to High", label_ar: "الأقل سعراً", label_fr: "Prix croissant" },
+            { id: "priceDesc", label_en: "Price: High to Low", label_ar: "الأعلى سعراً", label_fr: "Prix décroissant" },
+            { id: "newest", label_en: "Newest Arrivals", label_ar: "الأحدث", label_fr: "Nouveautés" }
+          ];
+
+          const handleResetSortAndLayout = () => {
+            setMarketplaceSortOption("popular");
+            if (!showCommerceMap) {
+              setMarketplaceProductCardWidth(208);
+              setMarketplaceGridGap(16);
+              try {
+                localStorage.setItem("buyer_marketplace_product_card_width", "208");
+                localStorage.setItem("buyer_marketplace_grid_gap", "16");
+              } catch {
+                // ignore
               }
-            }}
-            className={`group h-8 transition-all duration-200 select-none outline-none border shrink-0 relative cursor-pointer ${
-              showCommerceMap
-                ? "w-8 rounded-full flex items-center justify-center"
-                : "px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold"
-            } ${
-              isMarketplaceFilterMenuOpen || marketplaceSortOption !== "popular" || marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16
-                ? "bg-stone-200/90 hover:bg-stone-300/80 dark:bg-stone-700 dark:hover:bg-stone-600 text-slate-900 dark:text-white border-stone-300 dark:border-stone-600 shadow-2xs font-bold"
-                : "bg-stone-100/90 dark:bg-stone-800/90 hover:bg-stone-200/90 text-stone-700 dark:text-stone-200 border-stone-200/80 dark:border-stone-700 shadow-2xs"
-            } focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-400`}
-            title={currentLanguage === "ar" ? "خيارات التصفية والترتيب والحجم" : "Filter, Sort & Size Options"}
-          >
-            {showCommerceMap ? (
-              <>
-                <SlidersHorizontal className={`w-3.5 h-3.5 stroke-[2px] shrink-0 ${
-                  isMarketplaceFilterMenuOpen || marketplaceSortOption !== "popular" || marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16
-                    ? "text-slate-900 dark:text-white"
-                    : "text-stone-700 dark:text-stone-200"
-                }`} />
-                {(marketplaceSortOption !== "popular" || marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16) && (
-                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-stone-900 shrink-0" />
-                )}
-              </>
-            ) : (
-              <>
-                <SlidersHorizontal className={`w-3.5 h-3.5 stroke-[2px] shrink-0 ${
-                  isMarketplaceFilterMenuOpen || marketplaceSortOption !== "popular" || marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16
-                    ? "text-slate-900 dark:text-white"
-                    : "text-stone-700 dark:text-stone-200"
-                }`} />
-                <span>{currentLanguage === "ar" ? "الفلاتر" : currentLanguage === "fr" ? "Filtres" : "Filters"}</span>
-                <ChevronDown className={`w-3 h-3 stroke-[2px] shrink-0 transition-transform duration-200 ${
-                  isMarketplaceFilterMenuOpen ? "rotate-180" : ""
+            }
+          };
+
+          return (
+            <div
+              ref={marketplaceFilterMenuRef}
+              className="relative shrink-0"
+            >
+              <button
+                type="button"
+                id="marketplace-filters-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isMarketplaceFilterMenuOpen) {
+                    closeMarketplaceFilterMenu();
+                  } else {
+                    openMarketplaceFilterMenu();
+                  }
+                }}
+                style={
+                  isActiveState
+                    ? { color: yumeAccent, borderColor: yumeAccent }
+                    : undefined
+                }
+                className={`group h-8 transition-all duration-200 select-none outline-none border shrink-0 relative cursor-pointer whitespace-nowrap ${
+                  showCommerceMap
+                    ? "w-8 rounded-full flex items-center justify-center"
+                    : "px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold"
                 } ${
-                  isMarketplaceFilterMenuOpen || marketplaceSortOption !== "popular" || (!showCommerceMap && (marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16))
-                    ? "text-slate-900 dark:text-white"
-                    : "text-stone-500 dark:text-stone-400"
-                }`} />
-                {(marketplaceSortOption !== "popular" || (!showCommerceMap && (marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16))) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                )}
-              </>
-            )}
-          </button>
-
-          {/* Filter & Sort Options Popover */}
-          <AnimatePresence>
-            {isMarketplaceFilterMenuOpen && (
-              <>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px] cursor-default"
-                  onClick={() => closeMarketplaceFilterMenu()}
-                />
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                  transition={{ duration: 0.18, ease: "easeOut" }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-2 before:content-[''] before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 w-[320px] sm:w-[350px] max-w-[calc(100vw-24px)] bg-white/98 dark:bg-stone-900/98 backdrop-blur-2xl border border-slate-200/90 dark:border-stone-800 rounded-3xl shadow-2xl p-4 sm:p-5 z-50 flex flex-col gap-3.5 font-sans rtl:text-right ltr:text-left text-start text-slate-800 dark:text-zinc-100 select-none"
-                >
-                  <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.06] dark:border-white/10">
-                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-900 dark:text-white">
-                      <div className="w-6 h-6 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center text-[#059669]">
-                        <SlidersHorizontal className="w-3.5 h-3.5" />
-                      </div>
-                      <span>{currentLanguage === "ar" ? "خيارات التصفية والترتيب" : currentLanguage === "fr" ? "Filtres et Tri" : "Filter & Sort Options"}</span>
-                    </div>
-                    {(marketplaceSortOption !== "popular" || (!showCommerceMap && (marketplaceProductCardWidth !== 208 || marketplaceGridGap !== 16))) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMarketplaceSortOption("popular");
-                          if (!showCommerceMap) {
-                            setMarketplaceProductCardWidth(208);
-                            setMarketplaceGridGap(16);
-                            try {
-                              localStorage.setItem("buyer_marketplace_product_card_width", "208");
-                              localStorage.setItem("buyer_marketplace_grid_gap", "16");
-                            } catch {
-                              // ignore
-                            }
-                          }
-                        }}
-                        className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:underline cursor-pointer transition-colors"
-                      >
-                        {currentLanguage === "ar" ? "إعادة تعيين" : "Reset"}
-                      </button>
+                  isActiveState
+                    ? "bg-white dark:bg-stone-800 shadow-2xs font-bold"
+                    : "bg-stone-100/90 dark:bg-stone-800/90 hover:bg-stone-200/90 text-stone-700 dark:text-stone-200 border-stone-200/80 dark:border-stone-700 shadow-2xs"
+                } focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-400`}
+                title={currentLanguage === "ar" ? "خيارات الترتيب والعرض" : currentLanguage === "fr" ? "Tri et Affichage" : "Sort & View"}
+                aria-label={currentLanguage === "ar" ? "الترتيب والعرض" : currentLanguage === "fr" ? "Tri et Vue" : "Sort & View"}
+                aria-expanded={isMarketplaceFilterMenuOpen}
+              >
+                {showCommerceMap ? (
+                  <>
+                    <SlidersHorizontal className="w-3.5 h-3.5 stroke-[2px] shrink-0" />
+                    {isCustomized && (
+                      <span
+                        className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full ring-1 ring-white dark:ring-stone-900 shrink-0"
+                        style={{ backgroundColor: yumeAccent }}
+                      />
                     )}
-                  </div>
+                  </>
+                ) : (
+                  <>
+                    <SlidersHorizontal className="w-3.5 h-3.5 stroke-[2px] shrink-0" />
+                    <span>{currentLanguage === "ar" ? "الترتيب والعرض" : currentLanguage === "fr" ? "Tri et Vue" : "Sort & View"}</span>
+                    {isCustomized && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: yumeAccent }}
+                      />
+                    )}
+                    <ChevronDown
+                      className={`w-3 h-3 stroke-[2px] shrink-0 transition-transform duration-200 ${
+                        isMarketplaceFilterMenuOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </>
+                )}
+              </button>
 
-                  {/* Sort options (First) */}
-                  <div className="space-y-1.5 pt-0.5">
-                    <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block font-mono">
-                      {currentLanguage === "ar" ? "الترتيب حسب" : "SORT BY"}
-                    </span>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {[
-                        { id: "popular", label: currentLanguage === "ar" ? "الأكثر شعبية" : "Most Popular" },
-                        { id: "rating", label: currentLanguage === "ar" ? "الأعلى تقييماً" : "Highest Rated" },
-                        { id: "price_asc", label: currentLanguage === "ar" ? "الأقل سعراً" : "Price: Low to High" },
-                        { id: "price_desc", label: currentLanguage === "ar" ? "الأعلى سعراً" : "Price: High to Low" },
-                        { id: "newest", label: currentLanguage === "ar" ? "الأحدث" : "Newest Arrivals" }
-                      ].map((opt) => (
+              {/* YUME Sort & View Popover */}
+              <AnimatePresence>
+                {isMarketplaceFilterMenuOpen && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="fixed inset-0 z-40 bg-black/15 cursor-default"
+                      onClick={() => closeMarketplaceFilterMenu()}
+                    />
+                    <motion.div
+                      id="marketplace-sort-layout-panel"
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-2 before:content-[''] before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 w-[304px] max-w-[calc(100vw-24px)] bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-white/10 rounded-2xl shadow-2xl p-4 z-50 font-sans rtl:text-right ltr:text-left text-start text-stone-800 dark:text-stone-100 select-none space-y-3.5"
+                    >
+                      {/* Clean Header: Title + Reset */}
+                      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 dark:border-white/10">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-900 dark:text-white">
+                          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" style={{ color: yumeAccent }} />
+                          <span>{currentLanguage === "ar" ? "الترتيب والعرض" : currentLanguage === "fr" ? "Tri et Affichage" : "Sort & Layout"}</span>
+                        </div>
                         <button
-                          key={opt.id}
                           type="button"
-                          onClick={() => setMarketplaceSortOption(opt.id)}
-                          className={`text-xs px-2.5 py-1.5 rounded-xl transition-all text-left rtl:text-right cursor-pointer font-medium ${
-                            marketplaceSortOption === opt.id
-                              ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold shadow-xs"
-                              : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                          onClick={handleResetSortAndLayout}
+                          disabled={!isCustomized}
+                          className={`text-[11px] font-semibold flex items-center gap-1 transition-colors whitespace-nowrap ${
+                            isCustomized
+                              ? "text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white cursor-pointer"
+                              : "text-stone-400 dark:text-stone-600 opacity-50 cursor-not-allowed"
                           }`}
+                          title={currentLanguage === "ar" ? "إعادة للافتراضي" : currentLanguage === "fr" ? "Réinitialiser" : "Reset to default"}
                         >
-                          {opt.label}
+                          <RotateCcw className="w-3 h-3" />
+                          <span>{currentLanguage === "ar" ? "افتراضي" : currentLanguage === "fr" ? "Réinitialiser" : "Reset"}</span>
                         </button>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
 
-                  {/* Product Card Sizing Controls (Second) - Hidden when the map is displayed */}
-                  {!showCommerceMap && (
-                    <div className="space-y-3 pt-2 border-t border-black/[0.06] dark:border-white/10">
-                      <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block font-mono">
-                        {currentLanguage === "ar" ? "حجم بطاقة المنتج" : "PRODUCT SIZE"}
-                      </span>
-
-                      {/* Product Card Width */}
-                      <div className="space-y-1.5 text-left rtl:text-right">
-                        <div className="flex justify-between items-center text-xs font-medium select-none">
-                          <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-200">
-                            {currentLanguage === "ar" ? "عرض بطاقة المنتج" : currentLanguage === "fr" ? "Largeur de carte" : "Product Card Width"}
-                          </span>
-                          <span className="font-mono text-[#059669] dark:text-emerald-400 font-bold text-xs">
-                            {marketplaceProductCardWidth}px
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min="120"
-                          max="350"
-                          step="5"
-                          value={marketplaceProductCardWidth}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            setMarketplaceProductCardWidth(val);
-                            try {
-                              localStorage.setItem("buyer_marketplace_product_card_width", val.toString());
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                          className="w-full h-1.5 bg-black/[0.08] dark:bg-white/15 rounded-full appearance-none cursor-pointer accent-[#059669]"
-                        />
-                        <div className="flex justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-mono select-none">
-                          <span>120px</span>
-                          <span>350px</span>
+                      {/* Sort By */}
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300 block">
+                          {currentLanguage === "ar" ? "ترتيب حسب" : currentLanguage === "fr" ? "Trier par" : "Sort by"}
+                        </span>
+                        <div className="space-y-1">
+                          {sortOptions.map((opt) => {
+                            const isSelected = marketplaceSortOption === opt.id;
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => setMarketplaceSortOption(opt.id)}
+                                style={
+                                  isSelected
+                                    ? { borderColor: yumeAccent, color: yumeAccent }
+                                    : undefined
+                                }
+                                className={`w-full px-2.5 py-1.5 rounded-xl border text-xs flex items-center justify-between transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-stone-50/90 dark:bg-stone-800 shadow-2xs font-semibold"
+                                    : "bg-transparent border-transparent text-stone-600 dark:text-stone-300 hover:bg-stone-100/80 dark:hover:bg-white/5 hover:text-stone-900 dark:hover:text-white font-medium"
+                                }`}
+                              >
+                                <span className="truncate">
+                                  {currentLanguage === "ar" ? opt.label_ar : currentLanguage === "fr" ? opt.label_fr : opt.label_en}
+                                </span>
+                                {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      {/* Product Grid Gap */}
-                      <div className="space-y-1.5 text-left rtl:text-right">
-                        <div className="flex justify-between items-center text-xs font-medium select-none">
-                          <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-200">
-                            {currentLanguage === "ar" ? "مسافة تباعد المنتجات" : currentLanguage === "fr" ? "Espacement des cartes" : "Product Grid Gap"}
-                          </span>
-                          <span className="font-mono text-[#059669] dark:text-emerald-400 font-bold text-xs">
-                            {marketplaceGridGap}px
-                          </span>
+                      {/* Card Size & Spacing (Hidden in map mode) */}
+                      {!showCommerceMap && (
+                        <div className="pt-3 border-t border-stone-100 dark:border-white/10 space-y-3">
+                          {/* Card Size */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">
+                                {currentLanguage === "ar" ? "حجم البطاقة" : currentLanguage === "fr" ? "Taille des cartes" : "Card size"}
+                              </span>
+                              <span
+                                className="text-[11px] font-mono tabular-nums font-semibold"
+                                style={{ color: yumeAccent }}
+                              >
+                                {marketplaceProductCardWidth}px
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {cardSizePresets.map((preset) => {
+                                const isSelected = marketplaceProductCardWidth === preset.width;
+                                return (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setMarketplaceProductCardWidth(preset.width);
+                                      try {
+                                        localStorage.setItem("buyer_marketplace_product_card_width", preset.width.toString());
+                                      } catch {
+                                        // ignore
+                                      }
+                                    }}
+                                    style={
+                                      isSelected
+                                        ? { borderColor: yumeAccent, color: yumeAccent }
+                                        : undefined
+                                    }
+                                    className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-stone-50/90 dark:bg-stone-800 shadow-2xs font-bold"
+                                        : "bg-stone-50/50 dark:bg-white/5 border-stone-200/70 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:border-stone-300 hover:text-stone-800 dark:hover:text-white"
+                                    }`}
+                                    title={currentLanguage === "ar" ? preset.label_ar : currentLanguage === "fr" ? preset.label_fr : preset.label_en}
+                                  >
+                                    <div className="flex items-center gap-0.5 h-3">
+                                      {Array.from({ length: preset.bars }).map((_, barIdx) => (
+                                        <div
+                                          key={barIdx}
+                                          className={`h-3 w-1 rounded-xs transition-colors ${
+                                            isSelected ? "" : "bg-stone-300 dark:bg-stone-600"
+                                          }`}
+                                          style={isSelected ? { backgroundColor: yumeAccent } : undefined}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-[11px] font-semibold leading-none">{preset.id}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Spacing */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">
+                                {currentLanguage === "ar" ? "تباعد البطاقات" : currentLanguage === "fr" ? "Espacement" : "Spacing"}
+                              </span>
+                              <span
+                                className="text-[11px] font-semibold tabular-nums"
+                                style={{ color: yumeAccent }}
+                              >
+                                {spacingReadout}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {spacingPresets.map((spacing) => {
+                                const isSelected = marketplaceGridGap === spacing.gap;
+                                return (
+                                  <button
+                                    key={spacing.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setMarketplaceGridGap(spacing.gap);
+                                      try {
+                                        localStorage.setItem("buyer_marketplace_grid_gap", spacing.gap.toString());
+                                      } catch {
+                                        // ignore
+                                      }
+                                    }}
+                                    style={
+                                      isSelected
+                                        ? { borderColor: yumeAccent, color: yumeAccent }
+                                        : undefined
+                                    }
+                                    className={`py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-stone-50/90 dark:bg-stone-800 shadow-2xs font-bold"
+                                        : "bg-stone-50/50 dark:bg-white/5 border-stone-200/70 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:border-stone-300 hover:text-stone-800 dark:hover:text-white"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-center h-2.5 w-full">
+                                      <div
+                                        className={`h-2 w-2 rounded-xs ${isSelected ? "" : "bg-stone-400 dark:bg-stone-500"}`}
+                                        style={isSelected ? { backgroundColor: yumeAccent } : undefined}
+                                      />
+                                      <div className={`h-0.5 ${spacing.barWidth} bg-stone-300 dark:bg-stone-600`} />
+                                      <div
+                                        className={`h-2 w-2 rounded-xs ${isSelected ? "" : "bg-stone-400 dark:bg-stone-500"}`}
+                                        style={isSelected ? { backgroundColor: yumeAccent } : undefined}
+                                      />
+                                    </div>
+                                    <span className="text-[10.5px] font-semibold leading-tight">
+                                      {currentLanguage === "ar" ? spacing.label_ar : currentLanguage === "fr" ? spacing.label_fr : spacing.label_en}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
-                        <input
-                          type="range"
-                          min="4"
-                          max="40"
-                          step="2"
-                          value={marketplaceGridGap}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            setMarketplaceGridGap(val);
-                            try {
-                              localStorage.setItem("buyer_marketplace_grid_gap", val.toString());
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                          className="w-full h-1.5 bg-black/[0.08] dark:bg-white/15 rounded-full appearance-none cursor-pointer accent-[#059669]"
-                        />
-                        <div className="flex justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-mono select-none">
-                          <span>4px</span>
-                          <span>40px</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })()}
 
         {/* Show/Hide Map Toggle Pill placed after the Filter button */}
         <button
@@ -9087,6 +10276,13 @@ export default function App() {
                   backLabel: isArabic ? "لوحة التحكم" : "Dashboard",
                   backAction: () => setMerchantSubTab("home"),
                   status: isArabic ? "تحليلات مباشرة" : "Live Analytics",
+                };
+              case "partner-picks":
+                return {
+                  title: isArabic ? "شراكات المتاجر" : "Partner Picks",
+                  backLabel: isArabic ? "لوحة التحكم" : "Dashboard",
+                  backAction: () => setMerchantSubTab("home"),
+                  status: isArabic ? "5 قنوات نشطة" : "5 Channels Ready",
                 };
               case "ad-pixels":
                 return {
@@ -9522,7 +10718,7 @@ export default function App() {
                   style={
                     activeTab === "marketplace"
                       ? {
-                          color: currentSlideColor,
+                          color: headerContrastAccentColor,
                           transition: "color 700ms ease-in-out"
                         }
                       : {}
@@ -9537,7 +10733,7 @@ export default function App() {
                     setActiveTab("merchant");
                     setMerchantSubTab("home");
                   }}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold rounded-lg transition-all duration-200 shrink-0 whitespace-nowrap cursor-pointer ${
+                  className={`relative flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold rounded-lg transition-all duration-200 shrink-0 whitespace-nowrap cursor-pointer ${
                     activeTab === "merchant"
                       ? "bg-white shadow-sm border border-black/5 text-slate-900"
                       : "text-white/85 hover:bg-white/10 hover:text-white"
@@ -9545,7 +10741,7 @@ export default function App() {
                   style={
                     activeTab === "merchant"
                       ? {
-                          color: currentSlideColor,
+                          color: headerContrastAccentColor,
                           transition: "color 700ms ease-in-out"
                         }
                       : {}
@@ -9554,6 +10750,14 @@ export default function App() {
                   <Store className="w-3.5 h-3.5 shrink-0" />
                   <span className="lg:hidden">{currentLanguage === "ar" ? "التجار" : currentLanguage === "fr" ? "Vendeur" : "Merchant"}</span>
                   <span className="hidden lg:inline">{t("merchantSpace")}</span>
+                  {pendingStockNotifyCount > 0 && (
+                    <span
+                      className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[9.5px] font-black font-mono leading-none shadow-xs ring-2 ring-white/80 animate-pulse"
+                      title={`${pendingStockNotifyCount} pending store stock notify alert(s)`}
+                    >
+                      {pendingStockNotifyCount}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setActiveTab("admin")}
@@ -9914,9 +11118,16 @@ export default function App() {
                       setIsSignInMode(false);
                       setIsPathSelectionOpen(true);
                     }}
-                    className="text-xs font-black px-4 py-2 rounded-xl bg-white hover:bg-amber-100 active:scale-95 transition-all shadow-md cursor-pointer"
+                    className="text-xs font-black px-4 py-2 rounded-xl bg-white hover:bg-stone-100 active:scale-95 transition-all shadow-md cursor-pointer"
                     style={{
-                      color: darkMode ? "#0f172a" : currentSlideColor,
+                      backgroundColor:
+                        !darkMode && sessionBrandTheme.isLight ? "#4D4040" : "#ffffff",
+                      color:
+                        darkMode
+                          ? "#0f172a"
+                          : sessionBrandTheme.isLight
+                          ? "#F9FBF4"
+                          : currentSlideColor,
                       transition: "color 700ms ease-in-out, background-color 200ms ease-out"
                     }}
                     id="header-getstarted-btn"
@@ -10067,9 +11278,10 @@ export default function App() {
                 return (
                   <div
                     key={index}
+                    style={{
+                      backgroundColor: darkMode ? "#0f172a" : currentSlideColor,
+                    }}
                     className={`absolute inset-0 w-full h-full p-4 md:p-6 flex flex-row justify-between items-center gap-4 transition-all duration-700 ease-in-out ${
-                      darkMode ? "bg-[#0f172a]" : sessionBrandTheme.bgColor
-                    } ${
                       isSelected ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 translate-x-12 pointer-events-none"
                     }`}
                   >
@@ -10080,7 +11292,9 @@ export default function App() {
                           initial={{ opacity: 0, y: 15 }}
                           animate={isSelected ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
                           transition={{ duration: 0.5, ease: "easeOut" }}
-                          className="text-xl md:text-3xl font-black font-sans tracking-tight text-white leading-tight"
+                          className={`text-xl md:text-3xl font-black font-sans tracking-tight leading-tight ${
+                            !darkMode && sessionBrandTheme.isLight ? "text-slate-900" : "text-white"
+                          }`}
                         >
                           {slide.title[currentLanguage] || slide.title.fr}
                         </motion.h2>
@@ -10088,7 +11302,9 @@ export default function App() {
                           initial={{ opacity: 0, y: 15 }}
                           animate={isSelected ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
                           transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-                          className="text-[11px] md:text-xs text-white/95 mt-1 md:mt-2 font-sans font-medium leading-normal max-w-md line-clamp-2"
+                          className={`text-[11px] md:text-xs mt-1 md:mt-2 font-sans font-medium leading-normal max-w-md line-clamp-2 ${
+                            !darkMode && sessionBrandTheme.isLight ? "text-slate-700" : "text-white/95"
+                          }`}
                         >
                           {slide.subtitle[currentLanguage] || slide.subtitle.fr}
                         </motion.p>
@@ -10112,7 +11328,9 @@ export default function App() {
 
                       {/* Footnote legal note */}
                       <div className="mt-2">
-                        <span className="text-[9px] text-white/85 underline font-sans tracking-wide cursor-pointer hover:text-white transition-colors">
+                        <span className={`text-[9px] underline font-sans tracking-wide cursor-pointer transition-colors ${
+                          !darkMode && sessionBrandTheme.isLight ? "text-slate-700 hover:text-slate-900" : "text-white/85 hover:text-white"
+                        }`}>
                           {slide.footnote[currentLanguage] || slide.footnote.fr}
                         </span>
                       </div>
@@ -11843,6 +13061,24 @@ export default function App() {
                   subcategories={subcategories}
                   globalAnimationDelay={globalAnimationDelay}
                   onSelectProduct={setSelectedProduct}
+                  stockNotifyRequests={stockNotifyRequests}
+                  onResolveStockNotifyRequest={handleResolveStockNotifyRequest}
+                  partnerPicksContext={{
+                    globalConfig: partnerPicksGlobalConfig,
+                    profilesByStoreId: partnerPicksProfilesByStoreId,
+                    partnerships: partnerPicksPartnerships,
+                    placements: partnerPicksPlacements,
+                    exposureLedgers: partnerPicksExposureLedgers,
+                    initialPartnershipId: partnerPicksInitialPartnershipId,
+                    onSaveProfile: handleSavePartnerPicksProfile,
+                    onSendPartnershipRequest: handleSendPartnerPicksRequest,
+                    onRespondToPartnership: handleRespondPartnerPicksPartnership,
+                    onProposePlacement: handleProposePartnerPickPlacement,
+                    onHostSelectPlacement: handleHostSelectPartnerPickPlacement,
+                    onProposerConfirmPlacement: handleProposerConfirmPartnerPickPlacement,
+                    onRemovePlacement: handleRemovePartnerPickPlacement,
+                    onViewStore: handleViewStoreFromPartnerPicks,
+                  }}
                 />
               </motion.div>
             )}
@@ -11884,6 +13120,28 @@ export default function App() {
                   setSubcategories={setSubcategories}
                   globalAnimationDelay={globalAnimationDelay}
                   setGlobalAnimationDelay={handleUpdateAnimationDelay}
+                  stockNotifyRequests={stockNotifyRequests}
+                  onResolveStockNotifyRequest={handleResolveStockNotifyRequest}
+                  onOpenStoreAlertsInMerchant={(storeId: string) => {
+                    setMySelectedStoreId(storeId);
+                    setMerchantSubTab("stock-alerts");
+                    setActiveTab("merchant");
+                  }}
+                  storeReports={storeReports}
+                  onUpdateStoreReport={handleAdminUpdateStoreReport}
+                  onInspectReportedStore={(storeId: string) => {
+                    const target = stores.find((s) => s.id === storeId);
+                    if (target) {
+                      setSelectedStore(target);
+                      setActiveTab("marketplace");
+                    }
+                  }}
+                  partnerPicksGlobalConfig={partnerPicksGlobalConfig}
+                  partnerPicksPartnerships={partnerPicksPartnerships}
+                  partnerPicksPlacements={partnerPicksPlacements}
+                  partnerPicksAnalyticsByChannel={partnerPicksAnalyticsByChannel}
+                  onSavePartnerPicksGlobalConfig={handleSavePartnerPicksAdminConfig}
+                  onPartnerPicksGovernanceAction={handlePartnerPicksAdminGovernance}
                 />
               </motion.div>
             )}
@@ -14612,11 +15870,80 @@ export default function App() {
           />
 
             {/* Branding and Store Info: shop.app modern layout panel sitting elegantly at the bottom */}
+            {(() => {
+              const activeDockTheme = selectedStoreDockSettings.appearance.theme;
+              const isDarkThemedBar =
+                activeDockTheme === "obsidian" ||
+                activeDockTheme === "aurora" ||
+                activeDockTheme === "neon";
+
+              const themedBarSurfaceStyle: React.CSSProperties =
+                activeDockTheme === "obsidian"
+                  ? {
+                      backgroundImage: "none",
+                      backgroundColor: isBrandingBarHovered
+                        ? "rgba(2, 6, 23, 0.99)"
+                        : "rgba(2, 6, 23, 0.96)",
+                      borderColor: "rgba(30, 41, 59, 0.95)",
+                      boxShadow:
+                        "0 20px 50px rgba(0,0,0,0.52), inset 0 1px 1px rgba(255,255,255,0.08)",
+                    }
+                  : activeDockTheme === "aurora"
+                  ? {
+                      backgroundColor: "rgba(15, 23, 42, 0.95)",
+                      backgroundImage:
+                        "linear-gradient(90deg, rgba(30, 27, 75, 0.95) 0%, rgba(15, 23, 42, 0.95) 50%, rgba(2, 44, 34, 0.95) 100%)",
+                      borderColor: "rgba(99, 102, 241, 0.45)",
+                      boxShadow:
+                        "0 20px 50px rgba(15,23,42,0.48), 0 0 28px rgba(99,102,241,0.2), inset 0 1px 1.5px rgba(255,255,255,0.14)",
+                    }
+                  : activeDockTheme === "neon"
+                  ? {
+                      backgroundImage: "none",
+                      backgroundColor: "rgba(2, 6, 23, 0.96)",
+                      borderColor: "rgba(217, 70, 239, 0.65)",
+                      boxShadow:
+                        "0 0 28px rgba(217,70,239,0.32), 0 18px 44px rgba(0,0,0,0.58), inset 0 1px 1.5px rgba(240,171,252,0.25)",
+                    }
+                  : {
+                      backgroundImage: "none",
+                      backgroundColor: darkMode
+                        ? isBrandingBarHovered
+                          ? "rgba(15, 23, 42, 0.92)"
+                          : "rgba(15, 23, 42, 0.85)"
+                        : hexToRgba(
+                            selectedStore.designSettings?.glassBarColor || "#ffffff",
+                            isBrandingBarHovered
+                              ? Math.min(
+                                  0.85,
+                                  ((selectedStore.designSettings?.glassBarOpacity !== undefined
+                                    ? selectedStore.designSettings?.glassBarOpacity
+                                    : 18) /
+                                    100) *
+                                    1.3
+                                )
+                              : (selectedStore.designSettings?.glassBarOpacity !== undefined
+                                  ? selectedStore.designSettings?.glassBarOpacity
+                                  : 18) / 100
+                          ),
+                      borderColor: darkMode
+                        ? "rgba(255, 255, 255, 0.14)"
+                        : "rgba(255, 255, 255, 0.45)",
+                      boxShadow: darkMode
+                        ? "0 16px 40px rgba(0,0,0,0.45), inset 0 1px 1.5px rgba(255,255,255,0.08)"
+                        : isBrandingBarHovered
+                        ? "0 20px 48px rgba(0,0,0,0.12), inset 0 1px 2px rgba(255,255,255,0.45)"
+                        : "0 12px 40px rgba(0,0,0,0.06), inset 0 1px 1.5px rgba(255,255,255,0.4)",
+                    };
+
+              return (
             <div 
               className="absolute inset-x-0 bottom-0 h-auto py-3 sm:py-5 bg-transparent z-45 flex items-center"
               id="active-store-branding-bar"
             >
               <div 
+                id="active-store-branding-bar-card"
+                data-dock-theme={activeDockTheme}
                 onMouseEnter={() => setIsBrandingBarHovered(true)}
                 onMouseLeave={() => setIsBrandingBarHovered(false)}
                 style={{
@@ -14630,21 +15957,7 @@ export default function App() {
                       ? Math.min(50, (selectedStore.designSettings?.glassBarBlur !== undefined ? selectedStore.designSettings?.glassBarBlur : 28) + 8) 
                       : (selectedStore.designSettings?.glassBarBlur !== undefined ? selectedStore.designSettings?.glassBarBlur : 28)
                   }px)`,
-                  backgroundColor: darkMode
-                    ? (isBrandingBarHovered ? "rgba(15, 23, 42, 0.92)" : "rgba(15, 23, 42, 0.85)")
-                    : hexToRgba(
-                        selectedStore.designSettings?.glassBarColor || "#ffffff",
-                        (isBrandingBarHovered 
-                          ? Math.min(0.85, ((selectedStore.designSettings?.glassBarOpacity !== undefined ? selectedStore.designSettings?.glassBarOpacity : 18) / 100) * 1.3) 
-                          : ((selectedStore.designSettings?.glassBarOpacity !== undefined ? selectedStore.designSettings?.glassBarOpacity : 18) / 100)
-                        )
-                      ),
-                  borderColor: darkMode ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.45)",
-                  boxShadow: darkMode
-                    ? "0 16px 40px rgba(0,0,0,0.45), inset 0 1px 1.5px rgba(255,255,255,0.08)"
-                    : isBrandingBarHovered
-                    ? "0 20px 48px rgba(0,0,0,0.12), inset 0 1px 2px rgba(255,255,255,0.45)"
-                    : "0 12px 40px rgba(0,0,0,0.06), inset 0 1px 1.5px rgba(255,255,255,0.4)",
+                  ...themedBarSurfaceStyle,
                   marginTop: "0px",
                   marginBottom: isMobileViewport 
                     ? "4px" 
@@ -14656,7 +15969,7 @@ export default function App() {
                   paddingTop: isMobileViewport ? "12px" : "15px",
                   paddingBottom: isMobileViewport ? "12px" : "13px",
                 }}
-                className={`${selectedStore.designSettings?.width === "medium" ? "max-w-4xl" : selectedStore.designSettings?.width === "full" ? "max-w-[96vw]" : "max-w-[1800px]"} mx-auto w-[calc(100%-24px)] sm:w-[calc(100%-48px)] px-5 sm:px-6 md:px-8 py-4.5 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-[24px] border ring-1 ring-white/10 dark:ring-white/5 relative z-40 mb-2 sm:mb-4 transition-all duration-300`}
+                className={`${selectedStore.designSettings?.width === "medium" ? "max-w-4xl" : selectedStore.designSettings?.width === "full" ? "max-w-[96vw]" : "max-w-[1800px]"} mx-auto w-[calc(100%-24px)] sm:w-[calc(100%-48px)] px-5 sm:px-6 md:px-8 py-4.5 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-[24px] border ring-1 ring-white/10 dark:ring-white/5 relative z-40 mb-2 sm:mb-4 transition-all duration-300 ${isDarkThemedBar ? "text-white" : ""}`}
               >
                 {/* Left part: logo + information */}
                 <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto relative">
@@ -14767,15 +16080,25 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Small plus button to add a story if viewing their own profile */}
-                    {myStore && selectedStore && myStore.id === selectedStore.id && (
+                    {/* Small plus button to manage stories directly ONLY for the store owner and active store staff */}
+                    {selectedStore && canManageStoriesForSelectedStore && (
                       <button
+                        type="button"
+                        id="store-profile-manage-stories-btn"
+                        aria-label={currentLanguage === "ar" ? "إدارة القصص" : "Manage Stories"}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setAddStoryModalStore(selectedStore);
+                          setMySelectedStoreId(selectedStore.id);
+                          setSelectedStore(null);
+                          setActiveQuickViewProduct(null);
+                          setActiveStoryStore(null);
+                          setAddStoryModalStore(null);
+                          setMerchantSubTab("stories");
+                          setActiveTab("merchant");
+                          window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
                         className="absolute -bottom-1 -right-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-1.5 border-2 border-white dark:border-slate-900 focus:outline-none transition-transform hover:scale-115 active:scale-90 shadow-md flex items-center justify-center cursor-pointer z-25"
-                        title={currentLanguage === "ar" ? "إضافة قصة جديدة" : "Add Story"}
+                        title={currentLanguage === "ar" ? "إدارة القصص" : "Manage Stories"}
                       >
                         <Plus className="w-3 h-3 text-white stroke-[3px]" />
                       </button>
@@ -14788,62 +16111,121 @@ export default function App() {
                       currentLanguage={currentLanguage} 
                       verified={selectedStore.verified} 
                       isGlassBanner={true}
+                      forceLightText={isDarkThemedBar}
                     />
                     
-                    {/* Redesigned Minimalist Metadata Row matching Screenshot exactly with clean black elements in light mode and crisp light elements in dark mode */}
-                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 sm:gap-3 mt-1.5 text-[11px] sm:text-xs text-neutral-900 dark:text-slate-200 font-bold">
-                      {/* Followers */}
-                      <div className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-neutral-900 dark:text-slate-200 stroke-[2.5px]" />
-                        <span>
-                          {getStoreFollowersCount(selectedStore)}{" "}
-                          {currentLanguage === "ar" ? "متابع" : "Followers"}
-                        </span>
-                      </div>
+                    {/* Redesigned Minimalist Metadata Row respecting Store Owner Visibility Settings */}
+                    {(() => {
+                      const followerBadge = formatPublicFollowerCountDisplay(
+                        getStoreFollowersCount(selectedStore),
+                        selectedStoreDockSettings.visibility.followerCountMode
+                      );
+                      const showLocation = selectedStoreDockSettings.visibility.showStoreLocation;
+                      return (
+                        <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-2.5 sm:gap-3 mt-1.5 text-[11px] sm:text-xs font-bold ${
+                          isDarkThemedBar ? "text-slate-100" : "text-neutral-900 dark:text-slate-200"
+                        }`}>
+                          {/* Followers Display (Actual count, Icon Only, or Not Available) */}
+                          <div className="flex items-center gap-1.5" id="store-profile-followers-badge">
+                            <Users className={`w-3.5 h-3.5 stroke-[2.5px] ${
+                              isDarkThemedBar ? "text-slate-100" : "text-neutral-900 dark:text-slate-200"
+                            }`} />
+                            {followerBadge.labelText && <span>{followerBadge.labelText}</span>}
+                          </div>
 
-                      {/* Divider */}
-                      <span className="text-neutral-400 dark:text-slate-600 select-none">|</span>
-
-                      {/* Distance */}
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-neutral-900 dark:text-slate-200 stroke-[2.5px]" />
-                        <span>
-                          {selectedStoreDistance !== null ? (
-                            selectedStoreDistance < 1 ? `${Math.round(selectedStoreDistance * 1000)} m` : `${selectedStoreDistance.toFixed(1)} km`
-                          ) : (
-                            currentLanguage === "ar" ? "تحديد المسافة..." : "Locating..."
+                          {/* Store Location (Strictly respects Store Location Visibility setting) */}
+                          {showLocation && (
+                            <>
+                              <span className={`${isDarkThemedBar ? "text-white/30" : "text-neutral-400 dark:text-slate-600"} select-none`}>|</span>
+                              <div className="flex items-center gap-1.5" id="store-profile-location-badge">
+                                <MapPin className={`w-3.5 h-3.5 stroke-[2.5px] ${
+                                  isDarkThemedBar ? "text-slate-100" : "text-neutral-900 dark:text-slate-200"
+                                }`} />
+                                <span>
+                                  {selectedStoreDistance !== null
+                                    ? selectedStoreDistance < 1
+                                      ? `${Math.round(selectedStoreDistance * 1000)} m`
+                                      : `${selectedStoreDistance.toFixed(1)} km`
+                                    : currentLanguage === "ar"
+                                    ? "تحديد المسافة..."
+                                    : "Locating..."}
+                                </span>
+                              </div>
+                            </>
                           )}
-                        </span>
-                      </div>
 
-                      {/* Divider */}
-                      <span className="text-neutral-400 dark:text-slate-600 select-none">|</span>
+                          {/* Divider */}
+                          <span className={`${isDarkThemedBar ? "text-white/30" : "text-neutral-400 dark:text-slate-600"} select-none`}>|</span>
 
-                      {/* Single star and rating score matching the screenshot exactly */}
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-neutral-900 text-neutral-900 dark:fill-amber-400 dark:text-amber-400" />
-                        <span>
-                          {typeof selectedStore.rating === "number" ? selectedStore.rating.toFixed(2) : selectedStore.rating || "5.00"}
-                        </span>
-                      </div>
-                    </div>
+                          {/* Single star and rating score */}
+                          <div className="flex items-center gap-1" id="store-profile-rating-badge">
+                            <Star className={`w-3.5 h-3.5 ${
+                              isDarkThemedBar
+                                ? "fill-amber-400 text-amber-400"
+                                : "fill-neutral-900 text-neutral-900 dark:fill-amber-400 dark:text-amber-400"
+                            }`} />
+                            <span>
+                              {typeof selectedStore.rating === "number"
+                                ? selectedStore.rating.toFixed(2)
+                                : selectedStore.rating || "5.00"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
-                {/* Right part: Action buttons made slightly smaller and styled cleanly with macOS Magnification Dock */}
+                {/* Right part: Action buttons styled cleanly with MacOsDock & Continuous 3D More Options Card */}
                 <div className="flex items-center gap-2 select-none shrink-0 w-full sm:w-auto justify-center sm:justify-start md:justify-end">
-                  <MacOsDock 
+                  <MacOsDock
                     currentLanguage={currentLanguage}
                     storeId={selectedStore.id}
                     storeName={selectedStore.name}
-                    storeUrl={selectedStore.subdomain ? `https://${selectedStore.subdomain}.platform.dz` : window.location.href}
+                    storeUrl={
+                      selectedStore.subdomain
+                        ? `https://${selectedStore.subdomain}.platform.dz`
+                        : window.location.href
+                    }
                     accentColor={selectedStore.designSettings?.accentColor || "#4f46e5"}
-                    isOwner={!!(myStore && selectedStore && myStore.id === selectedStore.id)}
+                    headerColor={
+                      darkMode
+                        ? brandIdentityGroups.header.effectiveHex &&
+                          brandIdentityGroups.header.effectiveHex.toLowerCase() !== "#0f172a"
+                          ? brandIdentityGroups.header.effectiveHex
+                          : "#1e293b"
+                        : currentSlideColor
+                    }
+                    isOwner={isStrictOwnerOfSelectedStore}
+                    isStrictOwner={isStrictOwnerOfSelectedStore}
+                    store={selectedStore}
+                    isDarkMode={darkMode}
+                    isAuthenticated={Boolean(currentUser)}
+                    isMerchantVisitor={Boolean(
+                      currentUser &&
+                        (myStore ||
+                          String(currentUser.role || "").toLowerCase().includes("merchant") ||
+                          String(currentUser.role || "").toLowerCase().includes("owner"))
+                    )}
+                    activeStoreNavTab={profileActiveTab}
+                    muteRecord={selectedStoreMuteRecord}
+                    isBlocked={isSelectedStoreBlocked}
+                    onConfirmMuteStore={handleConfirmMuteSelectedStore}
+                    onUnmuteStore={handleUnmuteSelectedStore}
+                    onConfirmBlockStore={handleConfirmBlockSelectedStore}
+                    onUnblockStore={handleUnblockSelectedStore}
+                    onSaveDockSettings={handleSaveSelectedStoreDockSettings}
+                    onSubmitStoreReport={handleSubmitSelectedStoreReport}
+                    onOpenPartnerPicks={handleOpenPartnerPicksEntryPoint}
                   >
                     <button
                       key={`btn-${selectedStore.id}-${followSparkTriggers[selectedStore.id] || 0}`}
                       onClick={() => handleToggleFollow(selectedStore.id)}
-                      title={followedStoreIds.includes(selectedStore.id) ? "Unfollow store" : "Follow store"}
+                      title={
+                        followedStoreIds.includes(selectedStore.id)
+                          ? "Unfollow store"
+                          : "Follow store"
+                      }
                       aria-label="Follow"
                       className={`font-black text-xs w-28 h-9 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 hover:scale-105 hover:shadow-md focus:outline-none shadow-xs border ${
                         followedStoreIds.includes(selectedStore.id)
@@ -14853,13 +16235,13 @@ export default function App() {
                     >
                       <span className="relative z-10 flex items-center justify-center gap-1">
                         {followedStoreIds.includes(selectedStore.id) ? (
-                           <>
-                            <FollowStatusIcon type="check" className="w-3.5 h-3.5 text-white" />
+                          <>
+                            <FollowStatusIcon type="check" className="w-3.5 h-3.5 text-current" />
                             <span className="text-[10px] sm:text-xs">Following</span>
                           </>
                         ) : (
                           <>
-                            <FollowStatusIcon type="plus" className="w-3.5 h-3.5 text-white" />
+                            <FollowStatusIcon type="plus" className="w-3.5 h-3.5 text-current" />
                             <span className="text-[10px] sm:text-xs">Follow</span>
                           </>
                         )}
@@ -14867,49 +16249,39 @@ export default function App() {
                     </button>
 
                     <button
-                      onClick={() => setActiveChatStoreId(activeChatStoreId === selectedStore.id ? null : selectedStore.id)}
-                      title={currentLanguage === "ar" ? "إرسال رسالة" : "Send message"}
+                      onClick={() => {
+                        if (isSelectedStoreBlocked) {
+                          return;
+                        }
+                        setActiveChatStoreId(
+                          activeChatStoreId === selectedStore.id ? null : selectedStore.id
+                        );
+                      }}
+                      disabled={isSelectedStoreBlocked}
+                      title={
+                        isSelectedStoreBlocked
+                          ? "You have blocked this store. Unblock to send new messages."
+                          : currentLanguage === "ar"
+                          ? "إرسال رسالة"
+                          : "Send message"
+                      }
                       style={{
                         backgroundColor: selectedStore.designSettings?.accentColor || "#4f46e5",
-                        borderColor: selectedStore.designSettings?.accentColor || "#4338ca"
+                        borderColor: selectedStore.designSettings?.accentColor || "#4338ca",
                       }}
-                      className="text-white font-black text-xs w-28 h-9 rounded-full active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 border focus:outline-none focus:ring-1 focus:ring-white/30"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-white" />
-                      <span className="text-[10px] sm:text-xs">Message</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleShareStore(selectedStore)}
-                      title={currentLanguage === "ar" ? "مشاركة المتجر" : "Share store"}
-                      className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs px-4 h-9 rounded-full transition-all cursor-pointer shadow-sm flex items-center gap-1.5 border border-amber-400 focus:outline-none"
-                    >
-                      <Share2 className="w-3.5 h-3.5 text-slate-950" />
-                      <span className="text-[10px] sm:text-xs">{shareCopied ? "Copied!" : "Share"}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setShowStoreDetails((prev) => !prev)}
-                      title={showStoreDetails ? "Hide store details" : "Show store details"}
-                      style={
-                        showStoreDetails && selectedStore.designSettings?.accentColor ? {
-                          backgroundColor: selectedStore.designSettings.accentColor,
-                          borderColor: selectedStore.designSettings.accentColor
-                        } : undefined
-                      }
-                      className={`font-black text-xs px-4 h-9 rounded-full transition-all duration-200 cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95 border focus:outline-none ${
-                        showStoreDetails
-                          ? (!selectedStore.designSettings?.accentColor ? "bg-amber-600 text-white border-amber-500 hover:bg-amber-700 font-extrabold" : "text-white font-extrabold")
-                          : "bg-slate-900/5 hover:bg-slate-900/10 dark:bg-white/10 dark:hover:bg-white/20 text-slate-800 dark:text-white border-slate-900/10 dark:border-white/20 font-extrabold shadow-sm backdrop-blur-xs"
+                      className={`text-white font-black text-xs w-28 h-9 rounded-full active:scale-95 transition-all shadow-sm flex items-center justify-center gap-1.5 border focus:outline-none focus:ring-1 focus:ring-white/30 ${
+                        isSelectedStoreBlocked ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
                       }`}
                     >
-                      <Info className={`w-3.5 h-3.5 ${showStoreDetails ? "text-white animate-pulse" : "text-slate-700 dark:text-slate-200"}`} />
-                      <span className="text-[10px] sm:text-xs">{showStoreDetails ? "Hide Details" : "Details"}</span>
+                      <MessageSquare className="w-3.5 h-3.5 text-current" />
+                      <span className="text-[10px] sm:text-xs">Message</span>
                     </button>
                   </MacOsDock>
                 </div>
               </div>
             </div>
+              );
+            })()}
           </div>
 
             {/* Grid layout for Full Page body with premium responsive bento panels */}
@@ -15419,56 +16791,89 @@ export default function App() {
                   >
                     {/* Sponsored Premium Partner Showcase Banner Ad (Refactored to mirror the main hero banner style, but smaller) */}
                     {(() => {
-                      // Select top 3 products sorted by rating to display the "best" products from this profile dynamically
+                      // Select top 3 products sorted by rating to display the "best" products from this profile dynamically,
+                      // blending up to 2 approved Channel 1 (STORE_BANNER) Partner Pick slots into Slots 1-2 while keeping Slot 0 native.
+                      const bannerPartnerPicks = resolvePartnerPicksForHostChannel(
+                        selectedStore,
+                        "STORE_BANNER"
+                      );
                       const selectedStoreAdProducts = (() => {
-                        if (!selectedStore || !selectedStore.products || selectedStore.products.length === 0) {
-                          return [
-                            {
-                              name: "Tapis Berbère",
-                              img: "https://images.unsplash.com/photo-1600121848594-d8644e57abab?w=150&auto=format&fit=crop&q=80",
-                              rotation: "-rotate-12 translate-y-1.5 hover:rotate-0 hover:z-20",
-                              originalProduct: null
-                            },
-                            {
-                              name: "Bijou Argent",
-                              img: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=150&auto=format&fit=crop&q=80",
-                              rotation: "-rotate-3 -translate-y-1 hover:rotate-0 hover:z-20",
-                              originalProduct: null
-                            },
-                            {
-                              name: "Miel Pure",
-                              img: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=150&auto=format&fit=crop&q=80",
-                              rotation: "rotate-12 translate-y-1.5 hover:rotate-0 hover:z-20",
-                              originalProduct: null
-                            }
-                          ];
-                        }
-                        // Sort by rating desc to get the "best" products of the profile
-                        const bestProds = [...selectedStore.products]
-                          .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-                          .slice(0, 3);
-                        
                         const rotations = [
                           "-rotate-12 translate-y-1.5 hover:rotate-0 hover:z-20",
                           "-rotate-3 -translate-y-1 hover:rotate-0 hover:z-20",
                           "rotate-12 translate-y-1.5 hover:rotate-0 hover:z-20"
                         ];
 
-                        return bestProds.map((p, index) => ({
-                          name: p.name,
-                          img: p.imageUrl,
-                          rotation: rotations[index % rotations.length],
-                          originalProduct: p
-                        }));
+                        const nativeItems: Array<{
+                          name: string;
+                          img: string;
+                          rotation: string;
+                          originalProduct: Product | null;
+                          partnerPickSlot?: ResolvedChannelPartnerPickSlot;
+                        }> = !selectedStore || !selectedStore.products || selectedStore.products.length === 0
+                          ? [
+                              {
+                                name: "Tapis Berbère",
+                                img: "https://images.unsplash.com/photo-1600121848594-d8644e57abab?w=150&auto=format&fit=crop&q=80",
+                                rotation: rotations[0],
+                                originalProduct: null,
+                              },
+                              {
+                                name: "Bijou Argent",
+                                img: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=150&auto=format&fit=crop&q=80",
+                                rotation: rotations[1],
+                                originalProduct: null,
+                              },
+                              {
+                                name: "Miel Pure",
+                                img: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=150&auto=format&fit=crop&q=80",
+                                rotation: rotations[2],
+                                originalProduct: null,
+                              },
+                            ]
+                          : [...selectedStore.products]
+                              .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                              .slice(0, 3)
+                              .map((p, index) => ({
+                                name: p.name,
+                                img: p.imageUrl,
+                                rotation: rotations[index % rotations.length],
+                                originalProduct: p,
+                              }));
+
+                        if (bannerPartnerPicks.length > 0 && nativeItems.length > 0) {
+                          const merged = [...nativeItems];
+                          bannerPartnerPicks.slice(0, 2).forEach((slot, idx) => {
+                            const targetIdx = Math.min(2, idx + 1);
+                            merged[targetIdx] = {
+                              name: slot.liveProduct.name,
+                              img: slot.liveProduct.imageUrl,
+                              rotation: rotations[targetIdx % rotations.length],
+                              originalProduct: slot.liveProduct,
+                              partnerPickSlot: slot,
+                            };
+                          });
+                          return merged;
+                        }
+
+                        return nativeItems;
                       })();
+
+                      const isLightBannerSurface = !darkMode && sessionBrandTheme.isLight;
 
                       return (
                         <div 
-                          className="relative overflow-hidden rounded-2xl border py-4 sm:py-5 px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 group transition-all duration-350 shadow-md hover:shadow-[var(--glow-shadow)] hover:scale-[1.01] text-white w-full max-w-full"
+                          className={`relative overflow-hidden rounded-2xl border py-4 sm:py-5 px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 group transition-all duration-350 shadow-md hover:shadow-[var(--glow-shadow)] hover:scale-[1.01] w-full max-w-full ${
+                            isLightBannerSurface ? "text-slate-900" : "text-white"
+                          }`}
                           style={{ 
                             backgroundColor: currentSlideColor,
-                            borderColor: `color-mix(in srgb, ${currentSlideColor} 90%, black)`,
-                            "--glow-shadow": `0 20px 45px -4px color-mix(in srgb, ${currentSlideColor} 60%, transparent)`
+                            borderColor: isLightBannerSurface
+                              ? "rgba(15, 23, 42, 0.14)"
+                              : `color-mix(in srgb, ${currentSlideColor} 90%, black)`,
+                            "--glow-shadow": isLightBannerSurface
+                              ? "0 20px 45px -4px rgba(15, 23, 42, 0.14)"
+                              : `0 20px 45px -4px color-mix(in srgb, ${currentSlideColor} 60%, transparent)`
                           } as React.CSSProperties}
                         >
                           {/* Left: Text, Dynamic Countdown & Action Button column */}
@@ -15476,24 +16881,33 @@ export default function App() {
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span 
-                                  className="text-[8px] font-black tracking-widest bg-white font-mono px-1.5 py-0.5 rounded border"
-                                  style={{ color: currentSlideColor, borderColor: `color-mix(in srgb, ${currentSlideColor} 30%, transparent)` }}
+                                  className={`text-[8px] font-black tracking-widest font-mono px-1.5 py-0.5 rounded border ${
+                                    isLightBannerSurface ? "bg-slate-900 text-white border-slate-900" : "bg-white"
+                                  }`}
+                                  style={
+                                    isLightBannerSurface
+                                      ? undefined
+                                      : {
+                                          color: headerContrastAccentColor,
+                                          borderColor: `color-mix(in srgb, ${currentSlideColor} 30%, transparent)`
+                                        }
+                                  }
                                 >
                                   Elite Partner
                                 </span>
-                                <span className="text-[8px] font-bold text-slate-100/90 tracking-wider font-mono">Sponsored</span>
+                                <span className={`text-[8px] font-bold tracking-wider font-mono ${isLightBannerSurface ? "text-slate-600" : "text-slate-100/90"}`}>Sponsored</span>
                               </div>
-                              <h5 className="text-sm font-black text-white tracking-tight mt-1.5">
+                              <h5 className={`text-sm font-black tracking-tight mt-1.5 ${isLightBannerSurface ? "text-slate-900" : "text-white"}`}>
                                 {selectedStore?.adBannerTitle || "Algeria Direct Heritage"}
                               </h5>
-                              <p className="text-[11px] md:text-[12px] font-semibold text-white/90 leading-tight mt-1 max-w-xs sm:max-w-md">
+                              <p className={`text-[11px] md:text-[12px] font-semibold leading-tight mt-1 max-w-xs sm:max-w-md ${isLightBannerSurface ? "text-slate-700" : "text-white/90"}`}>
                                 {(() => {
                                   const customDesc = selectedStore?.adBannerDescription || "Direct local delivery of rare Berber rugs & fine crafts. Save 15% off today!";
                                   const parts = customDesc.split(/(\d+%\s*(?:off|OFF)|Flash Sale!|EXTRA \d+%\s*(?:off|OFF)?|Promo Code:?\s*\w+)/gi);
                                   return parts.map((part, i) => {
                                     if (/(\d+%\s*(?:off|OFF)|Flash Sale!|EXTRA \d+%\s*(?:off|OFF)?|Promo Code:?\s*\w+)/i.test(part)) {
                                       return (
-                                        <span key={i} className="font-extrabold text-amber-300">
+                                        <span key={i} className={`font-extrabold ${isLightBannerSurface ? "text-amber-700" : "text-amber-300"}`}>
                                           {part}
                                         </span>
                                       );
@@ -15505,17 +16919,17 @@ export default function App() {
 
                               {/* Dynamic Countdown Timer with high-end matching aesthetic */}
                               <div className="flex items-center gap-1.5 mt-2.5">
-                                <span className="text-[9px] font-bold tracking-wider text-white/80 font-mono mr-1">Offer Ends In:</span>
+                                <span className={`text-[9px] font-bold tracking-wider font-mono mr-1 ${isLightBannerSurface ? "text-slate-600" : "text-white/80"}`}>Offer Ends In:</span>
                                 <div className="flex items-center gap-1">
-                                  <span className="bg-black/25 px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight text-amber-200">
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight ${isLightBannerSurface ? "bg-slate-900 text-amber-300" : "bg-black/25 text-amber-200"}`}>
                                     {String(adCountdown.hours).padStart(2, '0')}
                                   </span>
-                                  <span className="text-xs font-bold opacity-70 text-slate-300">:</span>
-                                  <span className="bg-black/25 px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight text-amber-200">
+                                  <span className={`text-xs font-bold opacity-70 ${isLightBannerSurface ? "text-slate-600" : "text-slate-300"}`}>:</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight ${isLightBannerSurface ? "bg-slate-900 text-amber-300" : "bg-black/25 text-amber-200"}`}>
                                     {String(adCountdown.minutes).padStart(2, '0')}
                                   </span>
-                                  <span className="text-xs font-bold opacity-70 text-slate-300">:</span>
-                                  <span className="bg-black/25 px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight text-amber-200 animate-pulse">
+                                  <span className={`text-xs font-bold opacity-70 ${isLightBannerSurface ? "text-slate-600" : "text-slate-300"}`}>:</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight animate-pulse ${isLightBannerSurface ? "bg-slate-900 text-amber-300" : "bg-black/25 text-amber-200"}`}>
                                     {String(adCountdown.seconds).padStart(2, '0')}
                                   </span>
                                 </div>
@@ -15542,7 +16956,11 @@ export default function App() {
                                   setActiveQuickViewProduct(null);
                                   setExpandedStoreId(null);
                                 }}
-                                className="inline-flex items-center gap-1 bg-white/15 hover:bg-white/25 active:bg-white/30 font-bold text-[10px] px-3.5 py-2 rounded-full shadow-inner transition-all hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border border-white/20 hover:border-white/30 text-white"
+                                className={`inline-flex items-center gap-1 font-bold text-[10px] px-3.5 py-2 rounded-full shadow-inner transition-all hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border ${
+                                  isLightBannerSurface
+                                    ? "bg-slate-900/[0.08] hover:bg-slate-900/[0.14] active:bg-slate-900/20 border-slate-900/15 hover:border-slate-900/25 text-slate-900"
+                                    : "bg-white/15 hover:bg-white/25 active:bg-white/30 border-white/20 hover:border-white/30 text-white"
+                                }`}
                               >
                                 <span>Explore Deals</span>
                                 <ChevronRight className="w-2.5 h-2.5" />
@@ -15556,13 +16974,40 @@ export default function App() {
                               {selectedStoreAdProducts.map((prod, idx) => (
                                 <div 
                                   key={idx}
+                                  data-partner-pick={prod.partnerPickSlot ? "true" : undefined}
+                                  data-partner-source-store={prod.partnerPickSlot?.sourceStore.id}
                                   onClick={() => {
+                                    if (prod.partnerPickSlot) {
+                                      openPartnerPickOriginalProduct({
+                                        product: prod.partnerPickSlot.liveProduct,
+                                        sourceStore: prod.partnerPickSlot.sourceStore,
+                                        hostStoreId: selectedStore.id,
+                                        channelId: "STORE_BANNER",
+                                        placementId: prod.partnerPickSlot.placement.id,
+                                        partnershipId: prod.partnerPickSlot.partnership.id,
+                                      });
+                                      return;
+                                    }
                                     if (prod.originalProduct) {
                                       setSelectedProduct(prod.originalProduct);
                                     }
                                   }}
-                                  className={`relative bg-white shadow-md rounded-xl p-1.5 w-20 h-20 sm:w-28 sm:h-28 flex flex-col items-center justify-center transition-all duration-300 hover:scale-115 cursor-pointer border border-slate-200 group/item ${prod.rotation}`}
+                                  className={`relative bg-white shadow-md rounded-xl p-1.5 w-20 h-20 sm:w-28 sm:h-28 flex flex-col items-center justify-center transition-all duration-300 hover:scale-115 cursor-pointer border group/item ${
+                                    prod.partnerPickSlot
+                                      ? "border-emerald-400 ring-2 ring-emerald-400/40"
+                                      : "border-slate-200"
+                                  } ${prod.rotation}`}
+                                  title={
+                                    prod.partnerPickSlot
+                                      ? `${prod.name} • Partner Pick from ${prod.partnerPickSlot.sourceStore.name}`
+                                      : prod.name
+                                  }
                                 >
+                                  {prod.partnerPickSlot && (
+                                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-0.5 rounded-md bg-emerald-600 text-white text-[7px] font-black uppercase tracking-tight whitespace-nowrap shadow-xs border border-white/40">
+                                      Partner • {prod.partnerPickSlot.sourceStore.name.slice(0, 12)}
+                                    </span>
+                                  )}
                                   <div className="w-full h-full overflow-hidden rounded-md flex items-center justify-center bg-zinc-50">
                                     <img 
                                       src={prod.img} 
@@ -15642,7 +17087,7 @@ export default function App() {
                                     : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                                 }`}
                               >
-                                <Package className="w-3.5 h-3.5" />
+                                <ExpressCartIcon className="w-3.5 h-3.5" />
                                 <span>{currentLanguage === "ar" ? "المنتجات" : "Products"}</span>
                               </button>
                               <button
@@ -16320,40 +17765,94 @@ export default function App() {
                         <div className="w-full space-y-6 overflow-visible relative">
 
                           {/* Top store navigation & filter toolbar: Proposal 2 Compact Single-Row */}
+                          {isSelectedStoreBlocked && (
+                            <div
+                              id="store-profile-blocked-banner"
+                              className="w-full mb-3 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 font-bold">
+                                <span>
+                                  You have blocked {selectedStore.name}. New messages, promotional
+                                  posts, and new orders with this store are paused while your
+                                  existing orders and message history remain preserved.
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleUnblockSelectedStore}
+                                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shrink-0"
+                              >
+                                Unblock Store
+                              </button>
+                            </div>
+                          )}
+
+                          {(() => {
+                            const isLightNavBar = !darkMode && sessionBrandTheme.isLight;
+                            const inactiveNavTabClass = isLightNavBar
+                              ? "text-slate-700 hover:text-slate-950 hover:bg-black/[0.06] font-semibold"
+                              : "text-white/80 hover:text-white hover:bg-white/10 font-semibold";
+                            const activePlainNavTabClass = isLightNavBar
+                              ? "text-slate-950 font-extrabold underline underline-offset-4"
+                              : "text-white font-extrabold underline underline-offset-4";
+                            const inactiveNavIconColor = isLightNavBar
+                              ? "#475569"
+                              : "rgba(255,255,255,0.8)";
+
+                            return (
                           <div 
-                            className={`w-full rounded-full border border-white/20 shadow-sm p-1.5 px-2.5 md:px-3 md:py-1.5 flex flex-row flex-nowrap items-center justify-between gap-2 md:gap-3 relative select-none font-sans overflow-visible transition-colors duration-300 ${
+                            className={`w-full rounded-full border shadow-sm p-1.5 px-2.5 md:px-3 md:py-1.5 flex flex-row flex-nowrap items-center justify-between gap-2 md:gap-3 relative select-none font-sans overflow-visible transition-colors duration-300 ${
+                              isLightNavBar ? "border-black/10" : "border-white/20"
+                            } ${
                               showUnifiedFiltersDropdown || showDensityDropdown ? "z-50" : "z-30"
                             }`} 
                             id="profile-accessibility-filter-panel" 
                             style={{ backgroundColor: currentSlideColor }}
                           >
-                            {/* LEFT NAVIGATION TABS (Enforced by Subscription Plan Permissions: Products, Reels, Compare, Picks, Reviews, Saved, Deals) */}
+                            {/* LEFT NAVIGATION TABS (Enforced by Subscription Plan Permissions & Store Owner Dock Visibility Settings) */}
                             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full md:w-auto shrink-0 justify-start py-0.5" id="profile-tab-switch-container">
-                              {/* 1. Products Tab */}
-                              {selectedStorePlanPermissions.profileStore.products.enabled && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setProfileActiveTab("products");
-                                    setDensityTargetSection("products");
-                                    setSidebarGridTab("products");
-                                    setProfileShowSavedOnly(false);
+                              {/* 1. Products Tab — ALWAYS VISIBLE */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfileActiveTab("products");
+                                  setDensityTargetSection("products");
+                                  setSidebarGridTab("products");
+                                  setProfileShowSavedOnly(false);
+                                }}
+                                style={
+                                  profileActiveTab === "products" &&
+                                  selectedStoreDockSettings.appearance.enableActiveIndicators
+                                    ? { color: headerContrastAccentColor }
+                                    : undefined
+                                }
+                                className={`relative px-3.5 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
+                                  profileActiveTab === "products" &&
+                                  selectedStoreDockSettings.appearance.enableActiveIndicators
+                                    ? "bg-white shadow-xs font-bold"
+                                    : profileActiveTab === "products"
+                                    ? activePlainNavTabClass
+                                    : inactiveNavTabClass
+                                }`}
+                                id="profile-tab-products-btn"
+                              >
+                                <ExpressCartIcon
+                                  className="w-3.5 h-3.5"
+                                  strokeWidth={1.6}
+                                  style={{
+                                    color:
+                                      profileActiveTab === "products" &&
+                                      selectedStoreDockSettings.appearance.enableActiveIndicators
+                                        ? headerContrastAccentColor
+                                        : inactiveNavIconColor,
                                   }}
-                                  style={profileActiveTab === "products" ? { color: currentSlideColor } : undefined}
-                                  className={`relative px-3.5 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
-                                    profileActiveTab === "products"
-                                      ? "bg-white shadow-xs font-bold"
-                                      : "text-white/80 hover:text-white hover:bg-white/10 font-semibold"
-                                  }`}
-                                  id="profile-tab-products-btn"
-                                >
-                                  <Package className="w-3.5 h-3.5 stroke-[2.2px]" style={{ color: profileActiveTab === "products" ? currentSlideColor : "rgba(255,255,255,0.8)" }} />
-                                  <span>{currentLanguage === "ar" ? "منتجات" : "Products"}</span>
-                                </button>
-                              )}
+                                />
+                                <span>{currentLanguage === "ar" ? "منتجات" : "Products"}</span>
+                              </button>
 
                               {/* 2. Reels Tab */}
-                              {selectedStorePlanPermissions.profileStore.reels.enabled && (
+                              {selectedStorePlanPermissions.profileStore.reels.enabled &&
+                                selectedStoreDockSettings.visibility.navigation.reels && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -16361,21 +17860,39 @@ export default function App() {
                                     setDensityTargetSection("reels");
                                     setSidebarGridTab("reels");
                                   }}
-                                  style={profileActiveTab === "reels" ? { color: currentSlideColor } : undefined}
+                                  style={
+                                    profileActiveTab === "reels" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
+                                      ? { color: headerContrastAccentColor }
+                                      : undefined
+                                  }
                                   className={`relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
-                                    profileActiveTab === "reels"
+                                    profileActiveTab === "reels" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
                                       ? "bg-white shadow-xs font-bold"
-                                      : "text-white/80 hover:text-white hover:bg-white/10 font-semibold"
+                                      : profileActiveTab === "reels"
+                                      ? activePlainNavTabClass
+                                      : inactiveNavTabClass
                                   }`}
                                   id="profile-tab-reels-btn"
                                 >
-                                  <Film className="w-3.5 h-3.5 stroke-[2.2px]" style={{ color: profileActiveTab === "reels" ? currentSlideColor : "rgba(255,255,255,0.8)" }} />
+                                  <Film
+                                    className="w-3.5 h-3.5 stroke-[2.2px]"
+                                    style={{
+                                      color:
+                                        profileActiveTab === "reels" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : inactiveNavIconColor,
+                                    }}
+                                  />
                                   <span>{currentLanguage === "ar" ? "ريلز" : "Reels"}</span>
                                 </button>
                               )}
 
                               {/* 3. Compare Tab */}
-                              {selectedStorePlanPermissions.profileStore.compare.enabled && (
+                              {selectedStorePlanPermissions.profileStore.compare.enabled &&
+                                selectedStoreDockSettings.visibility.navigation.compare && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -16390,11 +17907,15 @@ export default function App() {
                                     }
                                     setIsCompareModalOpen(true);
                                   }}
-                                  className="relative px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 text-white/90 hover:text-white hover:bg-white/10"
+                                  className={`relative px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
+                                    isLightNavBar
+                                      ? "text-slate-800 hover:text-slate-950 hover:bg-black/[0.06]"
+                                      : "text-white/90 hover:text-white hover:bg-white/10"
+                                  }`}
                                   id="profile-tab-compare-btn"
                                   title={currentLanguage === "ar" ? "مقارنة" : "Compare"}
                                 >
-                                  <CompareIcon className="w-3.5 h-3.5 text-amber-300 stroke-[2.2px]" />
+                                  <CompareIcon className={`w-3.5 h-3.5 stroke-[2.2px] ${isLightNavBar ? "text-amber-600" : "text-amber-300"}`} />
                                   <span>{currentLanguage === "ar" ? "مقارنة" : currentLanguage === "fr" ? "Comparer" : "Compare"}</span>
                                   <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-stone-950 font-black text-[10px] leading-none shadow-xs ml-0.5">
                                     {comparedProducts.length > 0 ? comparedProducts.length : wishlist.length}
@@ -16403,125 +17924,218 @@ export default function App() {
                               )}
 
                               {/* 4. Picks Tab */}
-                              {selectedStorePlanPermissions.profileStore.picks.enabled && (
+                              {selectedStorePlanPermissions.profileStore.picks.enabled &&
+                                selectedStoreDockSettings.visibility.navigation.picks && (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setProfileActiveTab("picks");
                                     setProfileShowSavedOnly(false);
                                   }}
-                                  style={profileActiveTab === "picks" ? { color: currentSlideColor } : undefined}
+                                  style={
+                                    profileActiveTab === "picks" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
+                                      ? { color: headerContrastAccentColor }
+                                      : undefined
+                                  }
                                   className={`relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
-                                    profileActiveTab === "picks"
+                                    profileActiveTab === "picks" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
                                       ? "bg-white shadow-xs font-bold"
-                                      : "text-white/80 hover:text-white hover:bg-white/10 font-semibold"
+                                      : profileActiveTab === "picks"
+                                      ? activePlainNavTabClass
+                                      : inactiveNavTabClass
                                   }`}
                                   id="profile-tab-picks-btn"
                                 >
-                                  <Award className="w-3.5 h-3.5 stroke-[2.2px]" style={{ color: profileActiveTab === "picks" ? currentSlideColor : "rgba(255,255,255,0.8)" }} />
+                                  <Award
+                                    className="w-3.5 h-3.5 stroke-[2.2px]"
+                                    style={{
+                                      color:
+                                        profileActiveTab === "picks" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : inactiveNavIconColor,
+                                    }}
+                                  />
                                   <span>{currentLanguage === "ar" ? "المختارات" : currentLanguage === "fr" ? "Sélections" : "Picks"}</span>
                                 </button>
                               )}
 
                               {/* 5. Reviews Tab */}
-                              {selectedStorePlanPermissions.profileStore.reviews.enabled && (
+                              {selectedStorePlanPermissions.profileStore.reviews.enabled &&
+                                selectedStoreDockSettings.visibility.navigation.reviews && (
                                 <button
                                   type="button"
                                   onClick={() => setProfileActiveTab("reviews")}
-                                  style={profileActiveTab === "reviews" ? { color: currentSlideColor } : undefined}
+                                  style={
+                                    profileActiveTab === "reviews" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
+                                      ? { color: headerContrastAccentColor }
+                                      : undefined
+                                  }
                                   className={`relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
-                                    profileActiveTab === "reviews"
+                                    profileActiveTab === "reviews" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
                                       ? "bg-white shadow-xs font-bold"
-                                      : "text-white/80 hover:text-white hover:bg-white/10 font-semibold"
+                                      : profileActiveTab === "reviews"
+                                      ? activePlainNavTabClass
+                                      : inactiveNavTabClass
                                   }`}
                                   id="profile-tab-reviews-btn"
                                 >
-                                  <Star className="w-3.5 h-3.5" style={{ color: profileActiveTab === "reviews" ? currentSlideColor : "rgba(255,255,255,0.8)", fill: profileActiveTab === "reviews" ? currentSlideColor : "none" }} />
+                                  <Star
+                                    className="w-3.5 h-3.5"
+                                    style={{
+                                      color:
+                                        profileActiveTab === "reviews" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : inactiveNavIconColor,
+                                      fill:
+                                        profileActiveTab === "reviews" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : "none",
+                                    }}
+                                  />
                                   <span>{currentLanguage === "ar" ? "تقييمات" : "Reviews"}</span>
                                 </button>
                               )}
 
                               {/* 6. Saved Tab */}
-                              {selectedStorePlanPermissions.profileStore.saved.enabled && (
+                              {selectedStorePlanPermissions.profileStore.saved.enabled &&
+                                selectedStoreDockSettings.visibility.navigation.saved && (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setProfileActiveTab("saved");
                                     setProfileShowSavedOnly(true);
                                   }}
-                                  style={profileActiveTab === "saved" ? { color: currentSlideColor } : undefined}
+                                  style={
+                                    profileActiveTab === "saved" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
+                                      ? { color: headerContrastAccentColor }
+                                      : undefined
+                                  }
                                   className={`relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
-                                    profileActiveTab === "saved"
+                                    profileActiveTab === "saved" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
                                       ? "bg-white shadow-xs font-bold"
-                                      : "text-white/80 hover:text-white hover:bg-white/10 font-semibold"
+                                      : profileActiveTab === "saved"
+                                      ? activePlainNavTabClass
+                                      : inactiveNavTabClass
                                   }`}
                                   id="profile-tab-saved-btn"
                                 >
-                                  <Bookmark className="w-3.5 h-3.5 stroke-[2.2px]" style={{ color: profileActiveTab === "saved" ? currentSlideColor : "rgba(255,255,255,0.8)", fill: profileActiveTab === "saved" ? currentSlideColor : "none" }} />
+                                  <Bookmark
+                                    className="w-3.5 h-3.5 stroke-[2.2px]"
+                                    style={{
+                                      color:
+                                        profileActiveTab === "saved" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : inactiveNavIconColor,
+                                      fill:
+                                        profileActiveTab === "saved" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : "none",
+                                    }}
+                                  />
                                   <span>{currentLanguage === "ar" ? "محفوظات" : "Saved"}</span>
                                 </button>
                               )}
 
                               {/* 7. Deals Tab */}
-                              {selectedStorePlanPermissions.profileStore.deals.enabled && (
+                              {selectedStorePlanPermissions.profileStore.deals.enabled &&
+                                selectedStoreDockSettings.visibility.navigation.deals && (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setProfileActiveTab("deals");
                                     setProfileShowSavedOnly(false);
                                   }}
-                                  style={profileActiveTab === "deals" ? { color: currentSlideColor } : undefined}
+                                  style={
+                                    profileActiveTab === "deals" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
+                                      ? { color: headerContrastAccentColor }
+                                      : undefined
+                                  }
                                   className={`relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-1.5 cursor-pointer outline-none border-0 shrink-0 ${
-                                    profileActiveTab === "deals"
+                                    profileActiveTab === "deals" &&
+                                    selectedStoreDockSettings.appearance.enableActiveIndicators
                                       ? "bg-white shadow-xs font-bold"
-                                      : "text-white/80 hover:text-white hover:bg-white/10 font-semibold"
+                                      : profileActiveTab === "deals"
+                                      ? activePlainNavTabClass
+                                      : inactiveNavTabClass
                                   }`}
                                   id="profile-tab-deals-btn"
                                 >
-                                  <BadgePercent className="w-3.5 h-3.5 stroke-[2.2px]" style={{ color: profileActiveTab === "deals" ? currentSlideColor : "rgba(255,255,255,0.8)" }} />
+                                  <BadgePercent
+                                    className="w-3.5 h-3.5 stroke-[2.2px]"
+                                    style={{
+                                      color:
+                                        profileActiveTab === "deals" &&
+                                        selectedStoreDockSettings.appearance.enableActiveIndicators
+                                          ? headerContrastAccentColor
+                                          : inactiveNavIconColor,
+                                    }}
+                                  />
                                   <span>{currentLanguage === "ar" ? "عروض" : "Deals"}</span>
                                 </button>
                               )}
                             </div>
 
-                            {/* CENTER SEARCH BAR */}
-                            <div className="relative flex-1 w-full md:w-auto min-w-0 md:max-w-xs lg:max-w-sm">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50 pointer-events-none" />
-                              <input
-                                type="text"
-                                value={profileSearchQuery}
-                                onChange={(e) => {
-                                  setProfileSearchQuery(e.target.value);
-                                  setProfileProductPage(1);
-                                }}
-                                placeholder={
-                                  currentLanguage === "ar" 
-                                    ? "ابحث عن منتج في المتجر..." 
-                                    : currentLanguage === "fr" 
-                                    ? "Rechercher dans la boutique..." 
-                                    : "Search products in store..."
-                                }
-                                className="w-full bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/10 focus:border-white/30 rounded-full pl-9 pr-8 py-1.5 text-xs font-medium text-white placeholder-white/50 focus:outline-none transition-all duration-200 shadow-inner"
-                                id="profile-product-search-input"
-                              />
-                              {profileSearchQuery && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setProfileSearchQuery("");
+                            {/* CENTER SEARCH BAR (Controlled by Public Navigation Visibility: 7. Search) */}
+                            {selectedStoreDockSettings.visibility.navigation.search && (
+                              <div className="relative flex-1 w-full md:w-auto min-w-0 md:max-w-xs lg:max-w-sm">
+                                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none ${isLightNavBar ? "text-slate-500" : "text-white/50"}`} />
+                                <input
+                                  type="text"
+                                  value={profileSearchQuery}
+                                  onChange={(e) => {
+                                    setProfileSearchQuery(e.target.value);
                                     setProfileProductPage(1);
                                   }}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/60 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
-                                  title="Clear search"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
+                                  placeholder={
+                                    currentLanguage === "ar" 
+                                      ? "ابحث عن منتج في المتجر..." 
+                                      : currentLanguage === "fr" 
+                                      ? "Rechercher dans la boutique..." 
+                                      : "Search products in store..."
+                                  }
+                                  className={`w-full rounded-full pl-9 pr-8 py-1.5 text-xs font-medium focus:outline-none transition-all duration-200 shadow-inner border ${
+                                    isLightNavBar
+                                      ? "bg-white/85 hover:bg-white focus:bg-white border-black/10 focus:border-black/25 text-slate-900 placeholder-slate-500"
+                                      : "bg-white/10 hover:bg-white/15 focus:bg-white/20 border-white/10 focus:border-white/30 text-white placeholder-white/50"
+                                  }`}
+                                  id="profile-product-search-input"
+                                />
+                                {profileSearchQuery && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setProfileSearchQuery("");
+                                      setProfileProductPage(1);
+                                    }}
+                                    className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full transition-colors cursor-pointer ${
+                                      isLightNavBar
+                                        ? "text-slate-500 hover:text-slate-900 hover:bg-black/5"
+                                        : "text-white/60 hover:text-white hover:bg-white/10"
+                                    }`}
+                                    title="Clear search"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
 
                             {/* RIGHT CONTROLS & UTILITIES */}
                             <div className="flex items-center gap-2 w-full md:w-auto justify-end shrink-0 relative overflow-visible">
-                              {/* Unified Filters Button */}
+                              {/* Unified Filters Button (Controlled by Public Navigation Visibility: 8. Filters) */}
+                              {selectedStoreDockSettings.visibility.navigation.filters && (
                               <div
                                 className="relative shrink-0"
                               >
@@ -16540,11 +18154,13 @@ export default function App() {
                                   className={`group h-8 px-3 rounded-full flex items-center gap-1.5 cursor-pointer transition-all duration-200 select-none outline-none border text-xs font-semibold ${
                                     showUnifiedFiltersDropdown || profileCategoryFilter !== "All" || profileSortOption !== "popular" || profileRatingFilter > 0
                                       ? "bg-white text-zinc-900 border-white shadow-sm ring-1 ring-white/20"
+                                      : isLightNavBar
+                                      ? "bg-white/80 hover:bg-white text-slate-800 border-black/10 shadow-3xs"
                                       : "bg-white/10 hover:bg-white/15 text-white border-white/10 shadow-3xs"
                                   }`}
                                   title={currentLanguage === "ar" ? "خيارات التصفية والترتيب" : "Filter & Sort Options"}
                                 >
-                                  <SlidersHorizontal className={`w-3.5 h-3.5 stroke-[2px] ${showUnifiedFiltersDropdown || profileCategoryFilter !== "All" || profileSortOption !== "popular" ? "text-zinc-900" : "text-white/80"}`} />
+                                  <SlidersHorizontal className={`w-3.5 h-3.5 stroke-[2px] ${showUnifiedFiltersDropdown || profileCategoryFilter !== "All" || profileSortOption !== "popular" ? "text-zinc-900" : isLightNavBar ? "text-slate-700" : "text-white/80"}`} />
                                   <span>{currentLanguage === "ar" ? "تصفية" : currentLanguage === "fr" ? "Filtres" : "Filters"}</span>
                                   {(profileCategoryFilter !== "All" || profileSortOption !== "popular" || profileRatingFilter > 0) && (
                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
@@ -16553,6 +18169,8 @@ export default function App() {
                                     className={`w-3 h-3 transition-transform duration-200 stroke-[2px] ${
                                       showUnifiedFiltersDropdown
                                         ? "rotate-180 text-zinc-900"
+                                        : isLightNavBar
+                                        ? "text-slate-500 group-hover:text-slate-900"
                                         : "text-white/60 group-hover:text-white"
                                     }`}
                                   />
@@ -16748,58 +18366,73 @@ export default function App() {
                                   )}
                                 </AnimatePresence>
                               </div>
+                              )}
 
-                              {/* Controls (Grid Settings & Saved Items) */}
+                              {/* Controls (Layout & Display Settings + Saved Items) */}
+                              {(selectedStoreDockSettings.visibility.navigation.layout ||
+                                selectedStoreDockSettings.visibility.navigation.saved) && (
                               <div className="relative shrink-0">
-                                <div className="flex items-center gap-0.5 bg-white/10 p-0.5 rounded-full border border-white/10 shrink-0">
-                                  <button
-                                    type="button"
-                                    id="selector-columns-density"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setProfileLayoutStyle("grid");
-                                      setProfileActiveTab("products");
-                                      if (profileShowSavedOnly) {
-                                        setProfileShowSavedOnly(false);
-                                      }
-                                      setShowUnifiedFiltersDropdown(false);
-                                      setShowDensityDropdown((prev) => !prev);
-                                    }}
-                                    style={(!profileShowSavedOnly && profileLayoutStyle === "grid") || showDensityDropdown ? { color: currentSlideColor } : undefined}
-                                    className={`px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5 ${
-                                      (!profileShowSavedOnly && profileLayoutStyle === "grid") || showDensityDropdown
-                                        ? "bg-white shadow-sm font-bold"
-                                        : "text-white/80 hover:text-white hover:bg-white/10"
-                                    }`}
-                                    title={currentLanguage === "ar" ? "منتجات المتجر وإعدادات الشبكة" : "Products Grid & Density"}
-                                    aria-label="Products"
-                                  >
-                                    <Package className="w-3.5 h-3.5 stroke-[2.2px]" />
-                                    <span className="text-[11px] font-semibold">{currentLanguage === "ar" ? "المنتجات" : currentLanguage === "fr" ? "Produits" : "Products"}</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    id="profile-saved-items-toggle"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setProfileShowSavedOnly(!profileShowSavedOnly);
-                                      setShowDensityDropdown(false);
-                                      setShowUnifiedFiltersDropdown(false);
-                                    }}
-                                    style={profileShowSavedOnly ? { color: currentSlideColor } : undefined}
-                                    className={`p-1.5 rounded-full transition-all cursor-pointer flex items-center justify-center ${
-                                      profileShowSavedOnly
-                                        ? "bg-white shadow-sm font-bold"
-                                        : "text-white/60 hover:text-white hover:bg-white/10"
-                                    }`}
-                                    title={currentLanguage === "ar" ? "العناصر المحفوظة" : "Saved Items"}
-                                    aria-label={currentLanguage === "ar" ? "العناصر المحفوظة" : "Saved Items"}
-                                  >
-                                    <Bookmark className={`w-3.5 h-3.5 stroke-[2.2px] ${profileShowSavedOnly ? "fill-current" : ""}`} />
-                                  </button>
+                                <div className={`flex items-center gap-0.5 p-0.5 rounded-full border shrink-0 ${
+                                  isLightNavBar ? "bg-black/[0.06] border-black/10" : "bg-white/10 border-white/10"
+                                }`}>
+                                  {selectedStoreDockSettings.visibility.navigation.layout && (
+                                    <button
+                                      type="button"
+                                      id="selector-columns-density"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setProfileLayoutStyle("grid");
+                                        setProfileActiveTab("products");
+                                        if (profileShowSavedOnly) {
+                                          setProfileShowSavedOnly(false);
+                                        }
+                                        setShowUnifiedFiltersDropdown(false);
+                                        setShowDensityDropdown((prev) => !prev);
+                                      }}
+                                      style={(!profileShowSavedOnly && profileLayoutStyle === "grid") || showDensityDropdown ? { color: headerContrastAccentColor } : undefined}
+                                      className={`px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                                        (!profileShowSavedOnly && profileLayoutStyle === "grid") || showDensityDropdown
+                                          ? "bg-white shadow-sm font-bold"
+                                          : isLightNavBar
+                                          ? "text-slate-700 hover:text-slate-950 hover:bg-black/[0.06]"
+                                          : "text-white/85 hover:text-white hover:bg-white/10"
+                                      }`}
+                                      title={currentLanguage === "ar" ? "تخطيط وعرض المتجر" : currentLanguage === "fr" ? "Disposition et affichage" : "Layout & Display"}
+                                      aria-label={currentLanguage === "ar" ? "التخطيط" : currentLanguage === "fr" ? "Affichage" : "Layout"}
+                                    >
+                                      <LayoutGrid className="w-3.5 h-3.5" strokeWidth={2.1} />
+                                      <span className="text-[11px] font-semibold">
+                                        {currentLanguage === "ar" ? "التخطيط" : currentLanguage === "fr" ? "Affichage" : "Layout"}
+                                      </span>
+                                    </button>
+                                  )}
+                                  {selectedStoreDockSettings.visibility.navigation.saved && (
+                                    <button
+                                      type="button"
+                                      id="profile-saved-items-toggle"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setProfileShowSavedOnly(!profileShowSavedOnly);
+                                        setShowDensityDropdown(false);
+                                        setShowUnifiedFiltersDropdown(false);
+                                      }}
+                                      style={profileShowSavedOnly ? { color: headerContrastAccentColor } : undefined}
+                                      className={`p-1.5 rounded-full transition-all cursor-pointer flex items-center justify-center ${
+                                        profileShowSavedOnly
+                                          ? "bg-white shadow-sm font-bold"
+                                          : isLightNavBar
+                                          ? "text-slate-700 hover:text-slate-950 hover:bg-black/[0.06]"
+                                          : "text-white/60 hover:text-white hover:bg-white/10"
+                                      }`}
+                                      title={currentLanguage === "ar" ? "العناصر المحفوظة" : "Saved Items"}
+                                      aria-label={currentLanguage === "ar" ? "العناصر المحفوظة" : "Saved Items"}
+                                    >
+                                      <Bookmark className={`w-3.5 h-3.5 stroke-[2.2px] ${profileShowSavedOnly ? "fill-current" : ""}`} />
+                                    </button>
+                                  )}
                                 </div>
 
-                                {/* Grid Density & Spacing Settings Popover */}
+                                {/* YUME Layout & Display Popover */}
                                 <AnimatePresence>
                                   {showDensityDropdown && (() => {
                                     const isStoreMerchant = !!(
@@ -16815,6 +18448,49 @@ export default function App() {
                                       selectedStore.designSettings?.permitBuyerModifications
                                     );
                                     const canModify = isStoreMerchant || isPermittedBuyer;
+                                    const isReels = densityTargetSection === "reels";
+                                    const activePerRow = isReels ? storeReelsPerRow : storeProductsPerRow;
+                                    const activeLayoutMode = isReels ? profileReelsLayoutStyle : profileProductLayoutStyle;
+                                    const activeSpacing = isReels ? storeReelsCardSpacing : storeCardSpacing;
+                                    const yumeAccent = darkMode
+                                      ? "#A66F78"
+                                      : sessionBrandTheme.isLight
+                                      ? "#4D4040"
+                                      : rawSlideColor;
+
+                                    const handleResetLayout = () => {
+                                      if (isReels) {
+                                        setProfileReelsCardWidth(STANDARD_REELS_WIDTH);
+                                        setProfileReelsGridGap(STANDARD_REELS_GAP);
+                                        setProfileReelsLayoutStyle("grid");
+                                        localStorage.setItem("buyer_custom_reels_card_width", STANDARD_REELS_WIDTH.toString());
+                                        localStorage.setItem("buyer_custom_reels_grid_gap", STANDARD_REELS_GAP.toString());
+                                        if (isStoreMerchant) {
+                                          handleUpdateStoreDesignSetting("reelsGridCardMinWidth", `${STANDARD_REELS_WIDTH}px`);
+                                          handleUpdateStoreDesignSetting("reelsGridCardGap", `${STANDARD_REELS_GAP}px`);
+                                        }
+                                      } else {
+                                        setProfileProductCardWidth(STANDARD_PRODUCT_WIDTH);
+                                        setProfileProductGridGap(STANDARD_PRODUCT_GAP);
+                                        setProfileProductLayoutStyle("grid");
+                                        localStorage.setItem("buyer_custom_product_card_width", STANDARD_PRODUCT_WIDTH.toString());
+                                        localStorage.setItem("buyer_custom_product_grid_gap", STANDARD_PRODUCT_GAP.toString());
+                                        localStorage.setItem("buyer_custom_card_width", STANDARD_PRODUCT_WIDTH.toString());
+                                        localStorage.setItem("buyer_custom_grid_gap", STANDARD_PRODUCT_GAP.toString());
+                                        if (isStoreMerchant) {
+                                          handleUpdateStoreDesignSetting("gridCardMinWidth", `${STANDARD_PRODUCT_WIDTH}px`);
+                                          handleUpdateStoreDesignSetting("gridCardGap", `${STANDARD_PRODUCT_GAP}px`);
+                                        }
+                                      }
+                                    };
+
+                                    const spacingLabel =
+                                      activeSpacing === "compact"
+                                        ? (currentLanguage === "ar" ? "مدمج" : currentLanguage === "fr" ? "Compact" : "Compact")
+                                        : activeSpacing === "normal"
+                                        ? (currentLanguage === "ar" ? "عادي" : currentLanguage === "fr" ? "Normal" : "Normal")
+                                        : (currentLanguage === "ar" ? "واسع" : currentLanguage === "fr" ? "Spacieux" : "Spacious");
+
                                     return (
                                       <>
                                         <motion.div
@@ -16835,484 +18511,269 @@ export default function App() {
                                           transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                                           id="density-dropdown-panel"
                                           onClick={(e) => e.stopPropagation()}
-                                          className="absolute right-0 mt-2 w-72 sm:w-84 max-w-[calc(100vw-32px)] bg-white dark:bg-stone-900 border border-black/[0.08] dark:border-white/10 rounded-2xl shadow-2xl p-3.5 z-50 font-sans text-left"
+                                          className="absolute right-0 mt-2 w-[304px] max-w-[calc(100vw-32px)] bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-white/10 rounded-2xl shadow-2xl p-4 z-50 font-sans text-left space-y-3.5"
                                           style={{ top: "100%" }}
                                         >
-                                          {/* Section Switcher Tabs: Products vs Reels */}
-                                          <div className="flex bg-black/[0.05] dark:bg-white/10 p-1 rounded-xl mb-3 select-none gap-1">
+                                          {/* Header: Section Toggle (Products / Reels) + Reset */}
+                                          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 dark:border-white/10 select-none">
+                                            <div className="inline-flex bg-stone-100 dark:bg-white/10 p-0.5 rounded-lg gap-0.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => setDensityTargetSection("products")}
+                                                style={!isReels ? { color: yumeAccent } : undefined}
+                                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                                                  !isReels
+                                                    ? "bg-white dark:bg-stone-800 shadow-2xs font-bold"
+                                                    : "text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white"
+                                                }`}
+                                              >
+                                                <ExpressCartIcon className="w-3 h-3" />
+                                                <span>{currentLanguage === "ar" ? "المنتجات" : currentLanguage === "fr" ? "Produits" : "Products"}</span>
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setDensityTargetSection("reels")}
+                                                style={isReels ? { color: yumeAccent } : undefined}
+                                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                                                  isReels
+                                                    ? "bg-white dark:bg-stone-800 shadow-2xs font-bold"
+                                                    : "text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white"
+                                                }`}
+                                              >
+                                                <Film className="w-3 h-3" />
+                                                <span>{currentLanguage === "ar" ? "الريلز" : "Reels"}</span>
+                                              </button>
+                                            </div>
                                             <button
                                               type="button"
-                                              onClick={() => setDensityTargetSection("products")}
-                                              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                                densityTargetSection === "products"
-                                                  ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-                                                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                                              onClick={handleResetLayout}
+                                              disabled={!canModify}
+                                              className={`text-[11px] font-semibold text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
+                                                !canModify ? "opacity-40 cursor-not-allowed" : ""
+                                              }`}
+                                              title={currentLanguage === "ar" ? "إعادة للافتراضي" : "Reset to default"}
+                                            >
+                                              <RotateCcw className="w-3 h-3" />
+                                              <span>{currentLanguage === "ar" ? "افتراضي" : currentLanguage === "fr" ? "Réinitialiser" : "Reset"}</span>
+                                            </button>
+                                          </div>
+
+                                          {/* View Mode: Grid vs List */}
+                                          <div className="bg-stone-100/90 dark:bg-white/10 p-0.5 rounded-xl flex gap-1 select-none">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (isReels) {
+                                                  setProfileReelsLayoutStyle("grid");
+                                                  localStorage.setItem("buyer_custom_reels_layout_style", "grid");
+                                                } else {
+                                                  setProfileProductLayoutStyle("grid");
+                                                  localStorage.setItem("buyer_custom_product_layout_style", "grid");
+                                                }
+                                              }}
+                                              style={activeLayoutMode === "grid" ? { color: yumeAccent } : undefined}
+                                              className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                                                activeLayoutMode === "grid"
+                                                  ? "bg-white dark:bg-stone-800 shadow-2xs font-bold"
+                                                  : "text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white"
                                               }`}
                                             >
-                                              <Package className="w-3.5 h-3.5" />
-                                              <span>{currentLanguage === "ar" ? "المنتجات" : "Products"}</span>
-                                              <span className="text-[10px] font-mono opacity-70">{storeProductsPerRow} col.</span>
+                                              <LayoutGrid className="w-3.5 h-3.5" />
+                                              <span>{currentLanguage === "ar" ? "شبكة" : currentLanguage === "fr" ? "Grille" : "Grid"}</span>
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => setDensityTargetSection("reels")}
-                                              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                                densityTargetSection === "reels"
-                                                  ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-                                                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                                              onClick={() => {
+                                                if (isReels) {
+                                                  setProfileReelsLayoutStyle("list");
+                                                  localStorage.setItem("buyer_custom_reels_layout_style", "list");
+                                                } else {
+                                                  setProfileProductLayoutStyle("list");
+                                                  localStorage.setItem("buyer_custom_product_layout_style", "list");
+                                                }
+                                              }}
+                                              style={activeLayoutMode === "list" ? { color: yumeAccent } : undefined}
+                                              className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                                                activeLayoutMode === "list"
+                                                  ? "bg-white dark:bg-stone-800 shadow-2xs font-bold"
+                                                  : "text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white"
                                               }`}
                                             >
-                                              <Film className="w-3.5 h-3.5" />
-                                              <span>{currentLanguage === "ar" ? "الريلز" : "Reels"}</span>
-                                              <span className="text-[10px] font-mono opacity-70">{storeReelsPerRow} col.</span>
+                                              <List className="w-3.5 h-3.5" />
+                                              <span>{currentLanguage === "ar" ? "قائمة" : currentLanguage === "fr" ? "Liste" : "List"}</span>
                                             </button>
                                           </div>
 
-                                          {/* Popover Header */}
-                                          <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-black/[0.06] dark:border-white/10 select-none">
-                                            <div className="flex items-center gap-1.5">
-                                              <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
-                                              <span className="text-[12px] font-semibold text-zinc-900 dark:text-white">
-                                                {densityTargetSection === "reels"
-                                                  ? (currentLanguage === "ar" ? "شبكة الريلز" : currentLanguage === "fr" ? "Grille de Reels" : "Reels Grid")
-                                                  : (currentLanguage === "ar" ? "شبكة المنتجات" : currentLanguage === "fr" ? "Grille de produits" : "Products Grid")}
+                                          {/* Columns per Row */}
+                                          <div className="space-y-2 select-none">
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">
+                                                {currentLanguage === "ar" ? "الأعمدة في الصف" : currentLanguage === "fr" ? "Colonnes par ligne" : "Columns per row"}
+                                              </span>
+                                              <span
+                                                className="text-[11px] font-mono tabular-nums font-semibold"
+                                                style={{ color: yumeAccent }}
+                                              >
+                                                {activePerRow} {currentLanguage === "ar" ? "في الصف" : currentLanguage === "fr" ? "par ligne" : "per row"}
                                               </span>
                                             </div>
-                                            <span className="text-[11px] font-mono font-medium text-zinc-500 dark:text-zinc-400 bg-black/[0.04] dark:bg-white/10 px-2 py-0.5 rounded-full">
-                                              {densityTargetSection === "reels"
-                                                ? `${storeReelsPerRow} per row • ${storeReelsCardSpacing === "compact" ? (currentLanguage === "ar" ? "مدمج" : "Compact") : storeReelsCardSpacing === "normal" ? (currentLanguage === "ar" ? "عادي" : "Normal") : (currentLanguage === "ar" ? "واسع" : "Spacious")}`
-                                                : `${storeProductsPerRow} per row • ${storeCardSpacing === "compact" ? (currentLanguage === "ar" ? "مدمج" : "Compact") : storeCardSpacing === "normal" ? (currentLanguage === "ar" ? "عادي" : "Normal") : (currentLanguage === "ar" ? "واسع" : "Spacious")}`}
-                                            </span>
-                                          </div>
-
-                                          {/* Layout Mode Toggles for Active Section */}
-                                          <div className="mb-3">
-                                            <div className="bg-black/[0.04] dark:bg-white/10 p-0.5 rounded-xl flex gap-1 select-none">
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  if (densityTargetSection === "reels") {
-                                                    setProfileReelsLayoutStyle("grid");
-                                                    localStorage.setItem("buyer_custom_reels_layout_style", "grid");
-                                                  } else {
-                                                    setProfileProductLayoutStyle("grid");
-                                                    localStorage.setItem("buyer_custom_product_layout_style", "grid");
-                                                  }
-                                                }}
-                                                className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                  (densityTargetSection === "reels" ? profileReelsLayoutStyle : profileProductLayoutStyle) === "grid"
-                                                    ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-xs font-bold"
-                                                    : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                                                }`}
-                                              >
-                                                <LayoutGrid className="w-3 h-3" />
-                                                <span>{currentLanguage === "ar" ? "شبكة" : "Grid"}</span>
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  if (densityTargetSection === "reels") {
-                                                    setProfileReelsLayoutStyle("list");
-                                                    localStorage.setItem("buyer_custom_reels_layout_style", "list");
-                                                  } else {
-                                                    setProfileProductLayoutStyle("list");
-                                                    localStorage.setItem("buyer_custom_product_layout_style", "list");
-                                                  }
-                                                }}
-                                                className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                  (densityTargetSection === "reels" ? profileReelsLayoutStyle : profileProductLayoutStyle) === "list"
-                                                    ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-xs font-bold"
-                                                    : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                                                }`}
-                                              >
-                                                <List className="w-3 h-3" />
-                                                <span>{currentLanguage === "ar" ? "قائمة" : "List"}</span>
-                                              </button>
-                                            </div>
-                                          </div>
-
-                                          {/* Presets & Standard Default Reset */}
-                                          <div className="mb-3.5 space-y-2">
-                                            <div className="flex items-center justify-between select-none">
-                                              <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
-                                                {currentLanguage === "ar" ? "الإعدادات المسبقة" : "Presets"}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  if (densityTargetSection === "reels") {
-                                                    setProfileReelsCardWidth(STANDARD_REELS_WIDTH);
-                                                    setProfileReelsGridGap(STANDARD_REELS_GAP);
-                                                    setProfileReelsLayoutStyle("grid");
-                                                    localStorage.setItem("buyer_custom_reels_card_width", STANDARD_REELS_WIDTH.toString());
-                                                    localStorage.setItem("buyer_custom_reels_grid_gap", STANDARD_REELS_GAP.toString());
-                                                    if (isStoreMerchant) {
-                                                      handleUpdateStoreDesignSetting("reelsGridCardMinWidth", `${STANDARD_REELS_WIDTH}px`);
-                                                      handleUpdateStoreDesignSetting("reelsGridCardGap", `${STANDARD_REELS_GAP}px`);
-                                                    }
-                                                  } else {
-                                                    setProfileProductCardWidth(STANDARD_PRODUCT_WIDTH);
-                                                    setProfileProductGridGap(STANDARD_PRODUCT_GAP);
-                                                    setProfileProductLayoutStyle("grid");
-                                                    localStorage.setItem("buyer_custom_product_card_width", STANDARD_PRODUCT_WIDTH.toString());
-                                                    localStorage.setItem("buyer_custom_product_grid_gap", STANDARD_PRODUCT_GAP.toString());
-                                                    localStorage.setItem("buyer_custom_card_width", STANDARD_PRODUCT_WIDTH.toString());
-                                                    localStorage.setItem("buyer_custom_grid_gap", STANDARD_PRODUCT_GAP.toString());
-                                                    if (isStoreMerchant) {
-                                                      handleUpdateStoreDesignSetting("gridCardMinWidth", `${STANDARD_PRODUCT_WIDTH}px`);
-                                                      handleUpdateStoreDesignSetting("gridCardGap", `${STANDARD_PRODUCT_GAP}px`);
-                                                    }
-                                                  }
-                                                }}
-                                                className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                                              >
-                                                <RotateCcw className="w-2.5 h-2.5" />
-                                                <span>{currentLanguage === "ar" ? "المعيار القياسي" : "Standard Default"}</span>
-                                              </button>
-                                            </div>
-                                            <div className="bg-black/[0.05] dark:bg-white/10 p-1 rounded-xl flex gap-1 select-none">
-                                              {(densityTargetSection === "reels"
-                                                ? [
-                                                    { label_en: "Compact", label_ar: "مدمج", width: 140, gap: 12 },
-                                                    { label_en: "Standard", label_ar: "قياسي", width: 180, gap: 16 },
-                                                    { label_en: "Large", label_ar: "كبير", width: 240, gap: 20 },
-                                                  ]
-                                                : [
-                                                    { label_en: "Compact", label_ar: "مدمج", width: 160, gap: 12 },
-                                                    { label_en: "Standard", label_ar: "قياسي", width: 200, gap: 16 },
-                                                    { label_en: "Large", label_ar: "كبير", width: 260, gap: 20 },
-                                                  ]
-                                              ).map((preset) => {
-                                                const activeWidth = densityTargetSection === "reels" ? profileReelsCardWidth : profileProductCardWidth;
-                                                const isSelected = activeWidth === preset.width;
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                              {([2, 3, 4, 5] as const).map((cols) => {
+                                                const isSelected = activePerRow === cols;
                                                 return (
                                                   <button
-                                                    key={preset.width}
+                                                    key={cols}
                                                     type="button"
                                                     disabled={!canModify}
                                                     onClick={() => {
-                                                      if (densityTargetSection === "reels") {
-                                                        setProfileReelsCardWidth(preset.width);
-                                                        setProfileReelsGridGap(preset.gap);
+                                                      if (isReels) {
                                                         setProfileReelsLayoutStyle("grid");
-                                                        if (isStoreMerchant) {
-                                                          handleUpdateStoreDesignSetting("reelsGridCardMinWidth", `${preset.width}px`);
-                                                          handleUpdateStoreDesignSetting("reelsGridCardGap", `${preset.gap}px`);
-                                                        } else if (isPermittedBuyer) {
-                                                          localStorage.setItem("buyer_custom_reels_card_width", preset.width.toString());
-                                                          localStorage.setItem("buyer_custom_reels_grid_gap", preset.gap.toString());
-                                                        }
+                                                        handleSetReelsPerRow(cols);
                                                       } else {
-                                                        setProfileProductCardWidth(preset.width);
-                                                        setProfileProductGridGap(preset.gap);
                                                         setProfileProductLayoutStyle("grid");
-                                                        if (isStoreMerchant) {
-                                                          handleUpdateStoreDesignSetting("gridCardMinWidth", `${preset.width}px`);
-                                                          handleUpdateStoreDesignSetting("gridCardGap", `${preset.gap}px`);
-                                                        } else if (isPermittedBuyer) {
-                                                          localStorage.setItem("buyer_custom_product_card_width", preset.width.toString());
-                                                          localStorage.setItem("buyer_custom_product_grid_gap", preset.gap.toString());
-                                                          localStorage.setItem("buyer_custom_card_width", preset.width.toString());
-                                                          localStorage.setItem("buyer_custom_grid_gap", preset.gap.toString());
-                                                        }
+                                                        handleSetProductsPerRow(cols);
                                                       }
                                                     }}
-                                                    className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all duration-150 cursor-pointer text-center ${
+                                                    style={
                                                       isSelected
-                                                        ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] font-semibold"
-                                                        : "text-zinc-600 dark:text-zinc-300 hover:text-zinc-900"
-                                                    } ${!canModify ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                        ? { borderColor: yumeAccent, color: yumeAccent }
+                                                        : undefined
+                                                    }
+                                                    className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                      isSelected
+                                                        ? "bg-stone-50/90 dark:bg-stone-800 shadow-2xs font-bold"
+                                                        : "bg-stone-50/50 dark:bg-white/5 border-stone-200/70 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:border-stone-300 hover:text-stone-800 dark:hover:text-white"
+                                                    } ${!canModify ? "opacity-45 cursor-not-allowed" : ""}`}
                                                   >
-                                                    <div>{currentLanguage === "ar" ? preset.label_ar : preset.label_en}</div>
-                                                    <div className="text-[9px] opacity-70 font-sans">
-                                                      {densityTargetSection === "reels"
-                                                        ? preset.width >= 240
-                                                          ? (currentLanguage === "ar" ? "مقطعان" : "2 per row")
-                                                          : preset.width >= 180
-                                                          ? (currentLanguage === "ar" ? "3 في الصف" : "3 per row")
-                                                          : (currentLanguage === "ar" ? "4 في الصف" : "4 per row")
-                                                        : preset.width >= 240
-                                                        ? (currentLanguage === "ar" ? "صفين" : "2 per row")
-                                                        : preset.width >= 190
-                                                        ? (currentLanguage === "ar" ? "3 في الصف" : "3 per row")
-                                                        : (currentLanguage === "ar" ? "4 في الصف" : "4 per row")}
+                                                    <div className="flex items-center gap-0.5 h-3">
+                                                      {Array.from({ length: cols }).map((_, barIdx) => (
+                                                        <div
+                                                          key={barIdx}
+                                                          className={`h-3 w-1 rounded-xs transition-colors ${
+                                                            isSelected ? "" : "bg-stone-300 dark:bg-stone-600"
+                                                          }`}
+                                                          style={isSelected ? { backgroundColor: yumeAccent } : undefined}
+                                                        />
+                                                      ))}
                                                     </div>
+                                                    <span className="text-[11px] font-mono tabular-nums font-bold leading-none">
+                                                      {cols}
+                                                    </span>
                                                   </button>
                                                 );
                                               })}
                                             </div>
                                           </div>
 
-                                          {/* Status Callout Banner */}
-                                          {(() => {
-                                            if (isStoreMerchant) {
-                                              return (
-                                                <div className="mb-3.5 p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/50 dark:border-emerald-800/40 flex items-start gap-2 text-left select-none">
-                                                  <span className="text-xs select-none">✨</span>
-                                                  <div className="space-y-0.5">
-                                                    <div className="text-[10.5px] font-semibold text-emerald-900 dark:text-emerald-300">
-                                                      {currentLanguage === "ar" ? "نمط تعديل التاجر" : "Merchant Design Mode"}
-                                                    </div>
-                                                    <div className="text-[9.5px] text-emerald-700/90 dark:text-emerald-400 leading-tight">
-                                                      {currentLanguage === "ar" 
-                                                        ? "بصفتك مالك المتجر، يتم حفظ وتطبيق هذه الأبعاد لجميع الزوار."
-                                                        : `As store owner, ${densityTargetSection} layout changes are persisted storefront-wide.`}
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              );
-                                            }
-                                            
-                                            const isBuyer = currentUser?.role === "Buyer";
-                                            const permitted = !!selectedStore?.designSettings?.permitBuyerModifications;
-                                            
-                                            if (isBuyer) {
-                                              if (permitted) {
-                                                return (
-                                                  <div className="mb-3.5 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/50 dark:border-blue-800/40 flex flex-col gap-1 text-left select-none">
-                                                    <div className="flex items-start gap-1.5">
-                                                      <span className="text-xs select-none">✨</span>
-                                                      <div className="space-y-0.5">
-                                                        <div className="text-[10.5px] font-semibold text-blue-900 dark:text-blue-300">
-                                                          {currentLanguage === "ar" ? "تخصيص العرض الشخصي" : "Personal Display Mode"}
-                                                        </div>
-                                                        <div className="text-[9.5px] text-blue-700/90 dark:text-blue-400 leading-tight">
-                                                          {currentLanguage === "ar"
-                                                            ? "تفضيلاتك محفوظة ومطبقة على هذا الجهاز."
-                                                            : `Your preferences for ${densityTargetSection} are saved locally.`}
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                );
-                                              } else {
-                                                return (
-                                                  <div className="mb-3.5 p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/50 dark:border-amber-800/40 flex items-start gap-2 text-left select-none">
-                                                    <span className="text-xs select-none">🔒</span>
-                                                    <div className="space-y-0.5">
-                                                      <div className="text-[10.5px] font-semibold text-amber-900 dark:text-amber-300">
-                                                        {currentLanguage === "ar" ? "مغلق من قبل التاجر" : "Locked by Merchant"}
-                                                      </div>
-                                                      <div className="text-[9.5px] text-amber-700/90 dark:text-amber-400 leading-tight">
-                                                        {currentLanguage === "ar"
-                                                          ? "قام المتجر بقفل أبعاد الشبكة."
-                                                          : "Merchant has locked custom adjustments."}
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                );
-                                              }
-                                            }
-                                            
-                                            return (
-                                              <div className="mb-3.5 p-2.5 rounded-xl bg-black/[0.03] dark:bg-white/5 border border-black/[0.05] dark:border-white/10 flex items-start gap-2 text-left select-none">
-                                                <span className="text-xs select-none">🔒</span>
-                                                <div className="space-y-0.5">
-                                                  <div className="text-[10.5px] font-semibold text-zinc-900 dark:text-zinc-200">
-                                                    {currentLanguage === "ar" ? "تسجيل الدخول مطلوب" : "Sign In Required"}
-                                                  </div>
-                                                  <div className="text-[9.5px] text-zinc-500 dark:text-zinc-400 leading-tight">
-                                                    {currentLanguage === "ar"
-                                                      ? "يرجى تسجيل الدخول لتخصيص الشبكة."
-                                                      : "Sign in to customize storefront spacing."}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            );
-                                          })()}
-
-                                          {/* Layout Controls: Products Grid vs Reels Grid */}
-                                          {densityTargetSection === "products" ? (
-                                            <div className="bg-black/[0.02] dark:bg-white/5 border border-black/[0.05] dark:border-white/10 rounded-xl p-3 space-y-3.5">
-                                              {/* Choice 1: Products per Row */}
-                                              <div className="space-y-1.5 text-left">
-                                                <div className="flex justify-between items-center text-xs text-zinc-700 dark:text-zinc-300 font-medium select-none">
-                                                  <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-bold">
-                                                    {currentLanguage === "ar" ? "المنتجات في كل صف" : currentLanguage === "fr" ? "Produits par ligne" : "Products per Row"}
-                                                  </span>
-                                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
-                                                    {storeProductsPerRow} {currentLanguage === "ar" ? "في الصف" : "per row"}
-                                                  </span>
-                                                </div>
-                                                <div className="grid grid-cols-4 gap-1.5 select-none">
-                                                  {([2, 3, 4, 5] as const).map((cols) => {
-                                                    const isSelected = storeProductsPerRow === cols;
-                                                    return (
-                                                      <button
-                                                        key={cols}
-                                                        type="button"
-                                                        disabled={!canModify}
-                                                        onClick={() => handleSetProductsPerRow(cols)}
-                                                        className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                          isSelected
-                                                            ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-xs border-emerald-500 font-bold scale-[1.02]"
-                                                            : "bg-black/[0.02] dark:bg-white/5 border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
-                                                        } ${!canModify ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                      >
-                                                        <div className="flex items-center gap-0.5 h-3">
-                                                          {Array.from({ length: cols }).map((_, barIdx) => (
-                                                            <div
-                                                              key={barIdx}
-                                                              className={`h-3 w-1 rounded-xs transition-colors ${
-                                                                isSelected ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
-                                                              }`}
-                                                            />
-                                                          ))}
-                                                        </div>
-                                                        <span className="text-xs font-mono font-bold leading-none">{cols}</span>
-                                                      </button>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-
-                                              {/* Choice 2: Card Spacing */}
-                                              <div className="space-y-1.5 text-left">
-                                                <div className="flex justify-between items-center text-xs text-zinc-700 dark:text-zinc-300 font-medium select-none">
-                                                  <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-bold">
-                                                    {currentLanguage === "ar" ? "تباعد البطاقات" : currentLanguage === "fr" ? "Espacement des cartes" : "Card Spacing"}
-                                                  </span>
-                                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full capitalize">
-                                                    {storeCardSpacing === "compact" ? (currentLanguage === "ar" ? "مدمج" : "Compact") : storeCardSpacing === "normal" ? (currentLanguage === "ar" ? "عادي" : "Normal") : (currentLanguage === "ar" ? "واسع" : "Spacious")}
-                                                  </span>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-1.5 select-none">
-                                                  {[
-                                                    { id: "compact" as const, label_en: "Compact", label_ar: "مدمج", label_fr: "Compact" },
-                                                    { id: "normal" as const, label_en: "Normal", label_ar: "عادي", label_fr: "Normal" },
-                                                    { id: "spacious" as const, label_en: "Spacious", label_ar: "واسع", label_fr: "Spacieux" }
-                                                  ].map((spacing) => {
-                                                    const isSelected = storeCardSpacing === spacing.id;
-                                                    return (
-                                                      <button
-                                                        key={spacing.id}
-                                                        type="button"
-                                                        disabled={!canModify}
-                                                        onClick={() => handleSetCardSpacing(spacing.id)}
-                                                        className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                          isSelected
-                                                            ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-xs border-emerald-500 font-bold scale-[1.02]"
-                                                            : "bg-black/[0.02] dark:bg-white/5 border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
-                                                        } ${!canModify ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                      >
-                                                        <div className="flex items-center justify-center h-2.5 w-full">
-                                                          <div className={`h-2 w-2 rounded-xs ${isSelected ? "bg-emerald-500" : "bg-zinc-400"}`} />
-                                                          <div
-                                                            className={`h-0.5 ${
-                                                              spacing.id === "compact" ? "w-1" : spacing.id === "normal" ? "w-2.5" : "w-4"
-                                                            } bg-zinc-300 dark:bg-zinc-600`}
-                                                          />
-                                                          <div className={`h-2 w-2 rounded-xs ${isSelected ? "bg-emerald-500" : "bg-zinc-400"}`} />
-                                                        </div>
-                                                        <span className="text-[10px] font-bold leading-tight">
-                                                          {currentLanguage === "ar" ? spacing.label_ar : currentLanguage === "fr" ? spacing.label_fr : spacing.label_en}
-                                                        </span>
-                                                      </button>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
+                                          {/* Card Spacing */}
+                                          <div className="space-y-2 select-none">
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">
+                                                {currentLanguage === "ar" ? "تباعد البطاقات" : currentLanguage === "fr" ? "Espacement" : "Spacing"}
+                                              </span>
+                                              <span
+                                                className="text-[11px] font-semibold"
+                                                style={{ color: yumeAccent }}
+                                              >
+                                                {spacingLabel}
+                                              </span>
                                             </div>
-                                          ) : (
-                                            <div className="bg-black/[0.02] dark:bg-white/5 border border-black/[0.05] dark:border-white/10 rounded-xl p-3 space-y-3.5">
-                                              {/* Choice 1: Reels per Row */}
-                                              <div className="space-y-1.5 text-left">
-                                                <div className="flex justify-between items-center text-xs text-zinc-700 dark:text-zinc-300 font-medium select-none">
-                                                  <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-bold">
-                                                    {currentLanguage === "ar" ? "الريلز في كل صف" : currentLanguage === "fr" ? "Reels par ligne" : "Reels per Row"}
-                                                  </span>
-                                                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-full">
-                                                    {storeReelsPerRow} {currentLanguage === "ar" ? "في الصف" : "per row"}
-                                                  </span>
-                                                </div>
-                                                <div className="grid grid-cols-4 gap-1.5 select-none">
-                                                  {([2, 3, 4, 5] as const).map((cols) => {
-                                                    const isSelected = storeReelsPerRow === cols;
-                                                    return (
-                                                      <button
-                                                        key={cols}
-                                                        type="button"
-                                                        disabled={!canModify}
-                                                        onClick={() => handleSetReelsPerRow(cols)}
-                                                        className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                          isSelected
-                                                            ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-xs border-purple-500 font-bold scale-[1.02]"
-                                                            : "bg-black/[0.02] dark:bg-white/5 border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
-                                                        } ${!canModify ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                      >
-                                                        <div className="flex items-center gap-0.5 h-3">
-                                                          {Array.from({ length: cols }).map((_, barIdx) => (
-                                                            <div
-                                                              key={barIdx}
-                                                              className={`h-3 w-1 rounded-xs transition-colors ${
-                                                                isSelected ? "bg-purple-500" : "bg-zinc-300 dark:bg-zinc-600"
-                                                              }`}
-                                                            />
-                                                          ))}
-                                                        </div>
-                                                        <span className="text-xs font-mono font-bold leading-none">{cols}</span>
-                                                      </button>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-
-                                              {/* Choice 2: Card Spacing */}
-                                              <div className="space-y-1.5 text-left">
-                                                <div className="flex justify-between items-center text-xs text-zinc-700 dark:text-zinc-300 font-medium select-none">
-                                                  <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-bold">
-                                                    {currentLanguage === "ar" ? "تباعد البطاقات" : currentLanguage === "fr" ? "Espacement des cartes" : "Card Spacing"}
-                                                  </span>
-                                                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-full capitalize">
-                                                    {storeReelsCardSpacing === "compact" ? (currentLanguage === "ar" ? "مدمج" : "Compact") : storeReelsCardSpacing === "normal" ? (currentLanguage === "ar" ? "عادي" : "Normal") : (currentLanguage === "ar" ? "واسع" : "Spacious")}
-                                                  </span>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-1.5 select-none">
-                                                  {[
-                                                    { id: "compact" as const, label_en: "Compact", label_ar: "مدمج", label_fr: "Compact" },
-                                                    { id: "normal" as const, label_en: "Normal", label_ar: "عادي", label_fr: "Normal" },
-                                                    { id: "spacious" as const, label_en: "Spacious", label_ar: "واسع", label_fr: "Spacieux" }
-                                                  ].map((spacing) => {
-                                                    const isSelected = storeReelsCardSpacing === spacing.id;
-                                                    return (
-                                                      <button
-                                                        key={spacing.id}
-                                                        type="button"
-                                                        disabled={!canModify}
-                                                        onClick={() => handleSetReelsCardSpacing(spacing.id)}
-                                                        className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                          isSelected
-                                                            ? "bg-white dark:bg-stone-800 text-zinc-900 dark:text-white shadow-xs border-purple-500 font-bold scale-[1.02]"
-                                                            : "bg-black/[0.02] dark:bg-white/5 border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
-                                                        } ${!canModify ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                      >
-                                                        <div className="flex items-center justify-center h-2.5 w-full">
-                                                          <div className={`h-2 w-2 rounded-xs ${isSelected ? "bg-purple-500" : "bg-zinc-400"}`} />
-                                                          <div
-                                                            className={`h-0.5 ${
-                                                              spacing.id === "compact" ? "w-1" : spacing.id === "normal" ? "w-2.5" : "w-4"
-                                                            } bg-zinc-300 dark:bg-zinc-600`}
-                                                          />
-                                                          <div className={`h-2 w-2 rounded-xs ${isSelected ? "bg-purple-500" : "bg-zinc-400"}`} />
-                                                        </div>
-                                                        <span className="text-[10px] font-bold leading-tight">
-                                                          {currentLanguage === "ar" ? spacing.label_ar : currentLanguage === "fr" ? spacing.label_fr : spacing.label_en}
-                                                        </span>
-                                                      </button>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                              {[
+                                                { id: "compact" as const, label_en: "Compact", label_ar: "مدمج", label_fr: "Compact" },
+                                                { id: "normal" as const, label_en: "Normal", label_ar: "عادي", label_fr: "Normal" },
+                                                { id: "spacious" as const, label_en: "Spacious", label_ar: "واسع", label_fr: "Spacieux" }
+                                              ].map((spacing) => {
+                                                const isSelected = activeSpacing === spacing.id;
+                                                return (
+                                                  <button
+                                                    key={spacing.id}
+                                                    type="button"
+                                                    disabled={!canModify}
+                                                    onClick={() =>
+                                                      isReels
+                                                        ? handleSetReelsCardSpacing(spacing.id)
+                                                        : handleSetCardSpacing(spacing.id)
+                                                    }
+                                                    style={
+                                                      isSelected
+                                                        ? { borderColor: yumeAccent, color: yumeAccent }
+                                                        : undefined
+                                                    }
+                                                    className={`py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                      isSelected
+                                                        ? "bg-stone-50/90 dark:bg-stone-800 shadow-2xs font-bold"
+                                                        : "bg-stone-50/50 dark:bg-white/5 border-stone-200/70 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:border-stone-300 hover:text-stone-800 dark:hover:text-white"
+                                                    } ${!canModify ? "opacity-45 cursor-not-allowed" : ""}`}
+                                                  >
+                                                    <div className="flex items-center justify-center h-2.5 w-full">
+                                                      <div
+                                                        className={`h-2 w-2 rounded-xs ${isSelected ? "" : "bg-stone-400 dark:bg-stone-500"}`}
+                                                        style={isSelected ? { backgroundColor: yumeAccent } : undefined}
+                                                      />
+                                                      <div
+                                                        className={`h-0.5 ${
+                                                          spacing.id === "compact" ? "w-1" : spacing.id === "normal" ? "w-2.5" : "w-4"
+                                                        } bg-stone-300 dark:bg-stone-600`}
+                                                      />
+                                                      <div
+                                                        className={`h-2 w-2 rounded-xs ${isSelected ? "" : "bg-stone-400 dark:bg-stone-500"}`}
+                                                        style={isSelected ? { backgroundColor: yumeAccent } : undefined}
+                                                      />
+                                                    </div>
+                                                    <span className="text-[10.5px] font-semibold leading-tight">
+                                                      {currentLanguage === "ar" ? spacing.label_ar : currentLanguage === "fr" ? spacing.label_fr : spacing.label_en}
+                                                    </span>
+                                                  </button>
+                                                );
+                                              })}
                                             </div>
-                                          )}
+                                          </div>
+
+                                          {/* Quiet YUME Scope Status Line */}
+                                          <div className="pt-2.5 border-t border-stone-100 dark:border-white/10 flex items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400 select-none">
+                                            {isStoreMerchant ? (
+                                              <>
+                                                <Store className="w-3.5 h-3.5 shrink-0" style={{ color: yumeAccent }} />
+                                                <span>
+                                                  {currentLanguage === "ar"
+                                                    ? "تُطبق التغييرات على المتجر بالكامل"
+                                                    : "Applies storefront-wide for all visitors"}
+                                                </span>
+                                              </>
+                                            ) : currentUser?.role === "Buyer" && isPermittedBuyer ? (
+                                              <>
+                                                <Check className="w-3.5 h-3.5 shrink-0" style={{ color: yumeAccent }} />
+                                                <span>
+                                                  {currentLanguage === "ar"
+                                                    ? "تفضيلاتك محفوظة على هذا الجهاز"
+                                                    : "Saved to your device"}
+                                                </span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Lock className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                                                <span>
+                                                  {currentUser?.role === "Buyer"
+                                                    ? (currentLanguage === "ar" ? "التخطيط مغلق من قبل التاجر" : "Layout locked by store")
+                                                    : currentUser?.role === "Merchant"
+                                                    ? (currentLanguage === "ar" ? "يتحكم مالك هذا المتجر بالتخطيط" : "Layout managed by store owner")
+                                                    : (currentLanguage === "ar" ? "سجل الدخول لتخصيص العرض" : "Sign in to customize layout")}
+                                                </span>
+                                              </>
+                                            )}
+                                          </div>
                                         </motion.div>
                                       </>
                                     );
                                   })()}
                                 </AnimatePresence>
                               </div>
+                              )}
                             </div>
                           </div>
+                            );
+                          })()}
 
                           {profileActiveTab === "reels" ? (
                             (() => {
@@ -18181,12 +19642,61 @@ export default function App() {
                                       />
                                     ))
                                   ) : (
-                                    paginatedProfileProducts
-                                      .map((prod, pIdx) => (
+                                    (() => {
+                                      const gridEntries: Array<{
+                                        prod: Product;
+                                        storeForCard: MerchantStore;
+                                        partnerPickSlot?: ResolvedChannelPartnerPickSlot;
+                                      }> = paginatedProfileProducts.map((prod) => ({
+                                        prod,
+                                        storeForCard: selectedStore,
+                                      }));
+
+                                      if (
+                                        safeProfileCurrentPage === 1 &&
+                                        profileActiveTab !== "saved" &&
+                                        !profileShowSavedOnly
+                                      ) {
+                                        const gridPartnerSlots = resolvePartnerPicksForHostChannel(
+                                          selectedStore,
+                                          "PRODUCT_GRID",
+                                          safeProfileCurrentPage
+                                        );
+                                        const colsPerRow = isMobileViewport ? 2 : 4;
+                                        for (const slot of gridPartnerSlots) {
+                                          if (
+                                            gridEntries.some(
+                                              (entry) => entry.prod.id === slot.liveProduct.id
+                                            )
+                                          ) {
+                                            continue;
+                                          }
+                                          const coord = slot.placement.selectedOption?.gridCoordinate;
+                                          const rowIdx = Math.max(1, coord?.row || 1);
+                                          const colIdx = Math.max(
+                                            1,
+                                            Math.min(colsPerRow, coord?.column || 2)
+                                          );
+                                          const targetIdx = Math.max(
+                                            0,
+                                            Math.min(
+                                              gridEntries.length,
+                                              (rowIdx - 1) * colsPerRow + (colIdx - 1)
+                                            )
+                                          );
+                                          gridEntries.splice(targetIdx, 0, {
+                                            prod: slot.liveProduct,
+                                            storeForCard: slot.sourceStore,
+                                            partnerPickSlot: slot,
+                                          });
+                                        }
+                                      }
+
+                                      return gridEntries.map((entry, pIdx) => (
                                         <YumeProductCard
-                                          key={`${prod.id}-${pIdx}`}
-                                          prod={prod}
-                                          selectedStore={selectedStore}
+                                          key={`${entry.prod.id}-${entry.partnerPickSlot ? "pp" : "native"}-${pIdx}`}
+                                          prod={entry.prod}
+                                          selectedStore={entry.storeForCard}
                                           wishlist={wishlist}
                                           handleToggleWishlist={handleToggleWishlist}
                                           setSelectedProduct={setSelectedProduct}
@@ -18197,8 +19707,28 @@ export default function App() {
                                           currentSlideColor={currentSlideColor}
                                           comparedProducts={comparedProducts}
                                           onToggleCompare={handleToggleCompare}
+                                          partnerPickMeta={
+                                            entry.partnerPickSlot
+                                              ? {
+                                                  sourceStoreId: entry.partnerPickSlot.sourceStore.id,
+                                                  sourceStoreName: entry.partnerPickSlot.sourceStore.name,
+                                                  placementId: entry.partnerPickSlot.placement.id,
+                                                  partnershipId: entry.partnerPickSlot.partnership.id,
+                                                  onOpenOriginalProduct: () =>
+                                                    openPartnerPickOriginalProduct({
+                                                      product: entry.partnerPickSlot!.liveProduct,
+                                                      sourceStore: entry.partnerPickSlot!.sourceStore,
+                                                      hostStoreId: selectedStore.id,
+                                                      channelId: "PRODUCT_GRID",
+                                                      placementId: entry.partnerPickSlot!.placement.id,
+                                                      partnershipId: entry.partnerPickSlot!.partnership.id,
+                                                    }),
+                                                }
+                                              : undefined
+                                          }
                                         />
-                                      ))
+                                      ));
+                                    })()
                                   )}
                                 </div>
 
@@ -18237,7 +19767,7 @@ export default function App() {
                                               ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-xs font-bold"
                                               : "bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-100"
                                           }`}
-                                          style={pg === safeProfileCurrentPage && currentSlideColor ? { backgroundColor: currentSlideColor, borderColor: currentSlideColor } : undefined}
+                                          style={pg === safeProfileCurrentPage && headerContrastAccentColor ? { backgroundColor: headerContrastAccentColor, borderColor: headerContrastAccentColor } : undefined}
                                         >
                                           {pg}
                                         </button>
@@ -18298,7 +19828,7 @@ export default function App() {
                 {/* Chat Header */}
                 <div 
                   className="px-4 py-3.5 flex items-center justify-between text-white shrink-0 select-none shadow-sm"
-                  style={{ backgroundColor: currentSlideColor }}
+                  style={{ backgroundColor: headerContrastAccentColor }}
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-white/20 overflow-hidden border border-white/10 flex-shrink-0">
@@ -18341,7 +19871,7 @@ export default function App() {
                             ? "text-white rounded-tr-none text-left"
                             : "bg-white text-slate-800 border border-slate-150 rounded-tl-none text-left"
                         }`}
-                        style={msg.sender === "buyer" ? { backgroundColor: currentSlideColor } : undefined}
+                        style={msg.sender === "buyer" ? { backgroundColor: headerContrastAccentColor } : undefined}
                       >
                         {msg.text}
                       </div>
@@ -18384,7 +19914,7 @@ export default function App() {
                   <button 
                     type="submit"
                     className="p-2.5 text-white rounded-xl shadow-xs transition-all active:scale-95 shrink-0 flex items-center justify-center cursor-pointer hover:opacity-90"
-                    style={{ backgroundColor: currentSlideColor }}
+                    style={{ backgroundColor: headerContrastAccentColor }}
                   >
                     <ArrowRight className="w-4 h-4 text-white" />
                   </button>
@@ -18517,10 +20047,73 @@ export default function App() {
 
             {/* SOCIAL MEDIA STORIES MAIN VIEWER OVERLAY */}
             {activeStoryStore && (() => {
-              const stories = getStoreStories(activeStoryStore);
+              const nativeStories = getStoreStories(activeStoryStore);
+              const storiesPartnerSlots = resolvePartnerPicksForHostChannel(
+                activeStoryStore,
+                "STORIES"
+              );
+              const stories = (() => {
+                const sequence: Array<any> = [...nativeStories];
+                const canInject = shouldInjectPartnerPickIntoStoriesSequence({
+                  globalConfig: partnerPicksGlobalConfig,
+                  hostStore: activeStoryStore,
+                  storiesEnabledMap: storiesEnabledByStore,
+                  eligiblePartnerStorySlidesCount: storiesPartnerSlots.length,
+                });
+                if (canInject && storiesPartnerSlots.length > 0) {
+                  const insertIndices = resolveSequentialInsertionIndices({
+                    nativeItemsCount: nativeStories.length,
+                    eligiblePartnerItemsCount: storiesPartnerSlots.length,
+                    channelConfig: partnerPicksGlobalConfig.channels.STORIES,
+                  });
+                  let offset = 0;
+                  insertIndices.forEach((rawIdx, i) => {
+                    const slot = storiesPartnerSlots[i];
+                    if (!slot) return;
+                    const liveProd = slot.liveProduct;
+                    const primaryVideo =
+                      liveProd.videoUrl || (liveProd.videoUrls && liveProd.videoUrls[0]);
+                    const runtimePartnerSlide = {
+                      id: `pp_story_runtime_${slot.placement.id}_${liveProd.id}`,
+                      type: primaryVideo ? "video" : "image",
+                      url: primaryVideo || liveProd.imageUrl || liveProd.images?.[0] || "",
+                      text: `${liveProd.name} — Curated Partner Pick from ${slot.sourceStore.name}`,
+                      productId: liveProd.id,
+                      promotionBadge: `Partner Pick • ${slot.sourceStore.name}`,
+                      createdAt: Date.now(),
+                      isPartnerPickRuntimeSlide: true,
+                      partnerPickSlot: slot,
+                    };
+                    const idx = Math.min(sequence.length, rawIdx + offset);
+                    sequence.splice(idx, 0, runtimePartnerSlide);
+                    offset += 1;
+                  });
+                }
+                return sequence;
+              })();
               if (stories.length === 0) return null;
               const currentSlide = stories[activeStorySlideIndex] || stories[0];
-              const isOwner = myStore && myStore.id === activeStoryStore.id;
+              const activePartnerStorySlot: ResolvedChannelPartnerPickSlot | null =
+                (currentSlide as any)?.isPartnerPickRuntimeSlide
+                  ? (currentSlide as any).partnerPickSlot
+                  : null;
+              const isOwner = Boolean(
+                !activePartnerStorySlot &&
+                currentUser &&
+                  canUserManageStoreStories({
+                    user: {
+                      id: (currentUser as any).id || currentUser.email,
+                      name: currentUser.name,
+                      email: currentUser.email,
+                      role: currentUser.role,
+                      storeId: currentUser.storeId,
+                      storeName: currentUser.storeName,
+                      ownedStoreIds: resolvedCurrentUserOwnedStoreIds,
+                    },
+                    targetStore: activeStoryStore,
+                    activeStaffMemberId: null,
+                  })
+              );
 
               const needsManualLoad = isDataSaverEnabled && 
                 currentSlide && 
@@ -18909,6 +20502,32 @@ export default function App() {
                         className="w-[28%] h-full cursor-right-arrow" 
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (activePartnerStorySlot) {
+                            const elapsedMs = Date.now() - partnerPickSlideEnteredAtRef.current;
+                            setPartnerPicksUserFatigueState((prev) =>
+                              recordUserPartnerPickSkip({
+                                state: prev,
+                                globalConfig: partnerPicksGlobalConfig,
+                                channelId: "STORIES",
+                                placementId: activePartnerStorySlot.placement.id,
+                                productId: activePartnerStorySlot.liveProduct.id,
+                                sourceStoreId: activePartnerStorySlot.sourceStore.id,
+                                hostStoreId: activeStoryStore.id,
+                                exposureDurationMs: elapsedMs,
+                              }).nextState
+                            );
+                            trackPartnerPickEvent({
+                              channelId: "STORIES",
+                              eventType: "skip",
+                              partnershipId: activePartnerStorySlot.partnership.id,
+                              placementId: activePartnerStorySlot.placement.id,
+                              sourceStoreId: activePartnerStorySlot.sourceStore.id,
+                              hostStoreId: activeStoryStore.id,
+                              productId: activePartnerStorySlot.liveProduct.id,
+                              exposureDurationMs: elapsedMs,
+                            });
+                          }
+                          partnerPickSlideEnteredAtRef.current = Date.now();
                           if (activeStorySlideIndex < stories.length - 1) {
                             setActiveStorySlideIndex(prev => prev + 1);
                           } else {
@@ -19128,7 +20747,12 @@ export default function App() {
                     {/* Tagged product "Swipe Up to Shop" button, beautifully redesigned to direct to landing page on click */}
                     {(() => {
                       if (!currentSlide.productId) return null;
-                      const productFound = activeStoryStore.products.find(p => p.id === currentSlide.productId);
+                      const targetStoryStore = activePartnerStorySlot
+                        ? activePartnerStorySlot.sourceStore
+                        : activeStoryStore;
+                      const productFound = activePartnerStorySlot
+                        ? activePartnerStorySlot.liveProduct
+                        : activeStoryStore.products.find(p => p.id === currentSlide.productId);
                       if (!productFound) return null;
 
                       const isDiscountEnabled = !!productFound.discountEnabled;
@@ -19137,27 +20761,40 @@ export default function App() {
                         ? Math.round(productFound.price * (1 - discountPercentValue / 100))
                         : productFound.price;
 
+                      const handleOpenStoryTaggedProduct = (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        if (activePartnerStorySlot) {
+                          openPartnerPickOriginalProduct({
+                            product: activePartnerStorySlot.liveProduct,
+                            sourceStore: activePartnerStorySlot.sourceStore,
+                            hostStoreId: activeStoryStore.id,
+                            channelId: "STORIES",
+                            placementId: activePartnerStorySlot.placement.id,
+                            partnershipId: activePartnerStorySlot.partnership.id,
+                          });
+                          return;
+                        }
+                        if (currentSlide) {
+                          setStoryAnalytics(prev => {
+                            const id = currentSlide.id;
+                            const current = prev[id] || { views: 0, reactions: 0, clicks: 0 };
+                            return {
+                              ...prev,
+                              [id]: {
+                                ...current,
+                                clicks: current.clicks + 1
+                              }
+                            };
+                          });
+                        }
+                        setSelectedStore(targetStoryStore);
+                        setSelectedProduct(productFound);
+                        setActiveStoryStore(null);
+                      };
+
                       return (
                         <div 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (currentSlide) {
-                              setStoryAnalytics(prev => {
-                                const id = currentSlide.id;
-                                const current = prev[id] || { views: 0, reactions: 0, clicks: 0 };
-                                return {
-                                  ...prev,
-                                  [id]: {
-                                    ...current,
-                                    clicks: current.clicks + 1
-                                  }
-                                };
-                              });
-                            }
-                            setSelectedStore(activeStoryStore);
-                            setSelectedProduct(productFound);
-                            setActiveStoryStore(null);
-                          }}
+                          onClick={handleOpenStoryTaggedProduct}
                           className="absolute bottom-[72px] inset-x-0 flex flex-col items-center justify-center z-[48] px-3.5 pointer-events-auto cursor-pointer gap-2"
                         >
                           {/* Animated glassmorphic double-chevron circular indicator mimicking the screenshot */}
@@ -19169,25 +20806,7 @@ export default function App() {
                           </div>
 
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (currentSlide) {
-                                setStoryAnalytics(prev => {
-                                  const id = currentSlide.id;
-                                  const current = prev[id] || { views: 0, reactions: 0, clicks: 0 };
-                                  return {
-                                    ...prev,
-                                    [id]: {
-                                      ...current,
-                                      clicks: current.clicks + 1
-                                    }
-                                  };
-                                });
-                              }
-                              setSelectedStore(activeStoryStore);
-                              setSelectedProduct(productFound);
-                              setActiveStoryStore(null);
-                            }}
+                            onClick={handleOpenStoryTaggedProduct}
                             className="w-full h-[52px] pt-[5px] pb-[5px] mt-[2px] mb-[-20px] ml-0 mr-0 bg-white/15 hover:bg-white/25 backdrop-blur-xl text-white border border-white/30 font-sans font-black text-[11px] px-3.5 rounded-full flex items-center justify-between gap-2 select-none cursor-pointer group transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_12px_36px_rgba(0,0,0,0.3)] relative z-[48]"
                           >
                             <div className="flex items-center gap-2 min-w-0">
@@ -19200,7 +20819,11 @@ export default function App() {
                               )}
                               <div className="text-left truncate">
                                 <p className="text-[8.5px] text-emerald-400 font-bold uppercase tracking-wider leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
-                                  {currentLanguage === "ar" ? "خصم خاص معروض" : "Swipe up to Buy • Sale"}
+                                  {activePartnerStorySlot
+                                    ? `Partner Pick • From ${activePartnerStorySlot.sourceStore.name}`
+                                    : currentLanguage === "ar"
+                                    ? "خصم خاص معروض"
+                                    : "Swipe up to Buy • Sale"}
                                 </p>
                                 <h5 className="font-extrabold text-white truncate max-w-[140px] text-[10.5px] mt-0.5 leading-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
                                   {productFound.name}
@@ -19394,9 +21017,67 @@ export default function App() {
 
             {/* FACEBOOK REELS ACTIVE VIEWER OVERLAY */}
             {activeReelsStore && (() => {
-              const reels = getStoreReels(activeReelsStore);
+              const nativeReels = getStoreReels(activeReelsStore);
+              const reelsPartnerSlots = resolvePartnerPicksForHostChannel(
+                activeReelsStore,
+                "REELS_FEED"
+              );
+              const reels = (() => {
+                const sequence: Array<any> = [...nativeReels];
+                if (reelsPartnerSlots.length > 0 && nativeReels.length > 0) {
+                  const insertIndices = resolveSequentialInsertionIndices({
+                    nativeItemsCount: nativeReels.length,
+                    eligiblePartnerItemsCount: reelsPartnerSlots.length,
+                    channelConfig: partnerPicksGlobalConfig.channels.REELS_FEED,
+                  });
+                  let offset = 0;
+                  insertIndices.forEach((rawIdx, i) => {
+                    const slot = reelsPartnerSlots[i];
+                    if (!slot) return;
+                    const prod = slot.liveProduct;
+                    const originalVideo =
+                      prod.videoUrl || (prod.videoUrls && prod.videoUrls[0]) || "";
+                    const presentationMode:
+                      | "ORIGINAL_PRODUCT_VIDEO"
+                      | "PRODUCT_IMAGE_SHOWCASE"
+                      | "NATIVE_SCENE_CARD" = originalVideo
+                      ? "ORIGINAL_PRODUCT_VIDEO"
+                      : prod.imageUrl || (prod.images && prod.images[0])
+                      ? "PRODUCT_IMAGE_SHOWCASE"
+                      : "NATIVE_SCENE_CARD";
+                    const partnerReelItem = {
+                      id: `pp_reel_runtime_${slot.placement.id}_${prod.id}`,
+                      videoUrl: originalVideo,
+                      coverUrl:
+                        prod.imageUrl ||
+                        (prod.images && prod.images[0]) ||
+                        "https://images.unsplash.com/photo-1523275335684-37898b6baf30",
+                      title: prod.name,
+                      description:
+                        prod.description ||
+                        `Partner Pick curated from ${slot.sourceStore.name} (${slot.sourceStore.wilaya}).`,
+                      views: "Partner Pick",
+                      likes: 0,
+                      commentsCount: 0,
+                      comments: [],
+                      productId: prod.id,
+                      isPartnerPickReel: true,
+                      partnerPickPresentationMode: presentationMode,
+                      partnerPickSlot: slot,
+                    };
+                    const idx = Math.min(sequence.length, rawIdx + offset);
+                    sequence.splice(idx, 0, partnerReelItem);
+                    offset += 1;
+                  });
+                }
+                return sequence;
+              })();
               if (reels.length === 0) return null;
               const currentReel = reels[activeReelIndex] || reels[0];
+              const activePartnerReelSlot: ResolvedChannelPartnerPickSlot | null =
+                (currentReel as any)?.isPartnerPickReel
+                  ? (currentReel as any).partnerPickSlot
+                  : null;
               const reelId = currentReel.id;
               
               const isLiked = !!currentReelLiked[reelId];
@@ -19407,8 +21088,43 @@ export default function App() {
               const currentComments = reelComments[reelId] || currentReel.comments || [];
               const displayCommentsCount = currentComments.length;
 
-              const linkedProduct = activeReelsStore.products.find(p => p.id === currentReel.productId);
-              const isFollowing = followedStoreIds.includes(activeReelsStore.id);
+              const linkedProduct = activePartnerReelSlot
+                ? activePartnerReelSlot.liveProduct
+                : activeReelsStore.products.find(p => p.id === currentReel.productId);
+              const isFollowing = followedStoreIds.includes(
+                activePartnerReelSlot ? activePartnerReelSlot.sourceStore.id : activeReelsStore.id
+              );
+
+              const advanceReelWithSkipTracking = (nextIndex: number) => {
+                if (activePartnerReelSlot) {
+                  const elapsedMs = Date.now() - partnerPickSlideEnteredAtRef.current;
+                  setPartnerPicksUserFatigueState((prev) =>
+                    recordUserPartnerPickSkip({
+                      state: prev,
+                      globalConfig: partnerPicksGlobalConfig,
+                      channelId: "REELS_FEED",
+                      placementId: activePartnerReelSlot.placement.id,
+                      productId: activePartnerReelSlot.liveProduct.id,
+                      sourceStoreId: activePartnerReelSlot.sourceStore.id,
+                      hostStoreId: activeReelsStore.id,
+                      exposureDurationMs: elapsedMs,
+                    }).nextState
+                  );
+                  trackPartnerPickEvent({
+                    channelId: "REELS_FEED",
+                    eventType: "skip",
+                    partnershipId: activePartnerReelSlot.partnership.id,
+                    placementId: activePartnerReelSlot.placement.id,
+                    sourceStoreId: activePartnerReelSlot.sourceStore.id,
+                    hostStoreId: activeReelsStore.id,
+                    productId: activePartnerReelSlot.liveProduct.id,
+                    exposureDurationMs: elapsedMs,
+                  });
+                }
+                partnerPickSlideEnteredAtRef.current = Date.now();
+                setActiveReelIndex(nextIndex);
+                setShowReelCommentsDrawer(false);
+              };
               
               const handleCloseReels = () => {
                 setActiveReelsStore(null);
@@ -19476,8 +21192,7 @@ export default function App() {
                       type="button"
                       disabled={activeReelIndex === 0}
                       onClick={() => {
-                        setActiveReelIndex(prev => Math.max(0, prev - 1));
-                        setShowReelCommentsDrawer(false);
+                        advanceReelWithSkipTracking(Math.max(0, activeReelIndex - 1));
                       }}
                       className="hidden sm:flex items-center text-white/50 hover:text-white disabled:text-zinc-800 disabled:opacity-20 transition-all duration-250 cursor-pointer active:scale-90 scale-100 hover:scale-115 shrink-0 select-none bg-white/5 hover:bg-white/10 backdrop-blur-md p-3.5 rounded-full border border-white/10 shadow-lg"
                       title="Previous Reel"
@@ -19489,8 +21204,7 @@ export default function App() {
                     {activeReelIndex > 0 ? (
                       <div
                         onClick={() => {
-                          setActiveReelIndex(activeReelIndex - 1);
-                          setShowReelCommentsDrawer(false);
+                          advanceReelWithSkipTracking(activeReelIndex - 1);
                         }}
                         className="hidden lg:block w-[180px] xl:w-[200px] aspect-[9/16] rounded-2xl border-2 border-zinc-800 bg-black overflow-hidden relative opacity-30 hover:opacity-70 transition-all duration-350 cursor-pointer scale-90 hover:scale-95 shrink-0"
                       >
@@ -19521,59 +21235,72 @@ export default function App() {
                       )}
 
                       {/* Store Identity Row in Top Left instead of the indicator */}
-                      {!isCleanReelsMode && (
-                        <div 
-                          className="absolute top-4 left-4 z-45 flex items-center gap-2 bg-transparent max-w-[calc(100%-80px)] cursor-pointer hover:opacity-90 active:scale-95 transition-all duration-200 select-none"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedStore(activeReelsStore);
-                            setActiveReelsStore(null);
-                          }}
-                          title={`View ${activeReelsStore.name} Profile`}
-                        >
-                          <div className="w-8 h-8 rounded-full border border-white/30 overflow-hidden shrink-0 bg-white">
-                            {activeReelsStore.logo ? (
-                              <img src={activeReelsStore.logo} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <DefaultProfileStorePhoto className="w-full h-full object-cover" />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-black text-white tracking-wide truncate">
-                                {activeReelsStore.name}
-                              </span>
-                              {activeReelsStore.verified && (
-                                <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
-                              )}
-                            </div>
-                          </div>
-                          {/* Instant Follow feature connected into system */}
-                          <button
-                            key={`reel-btn-${activeReelsStore.id}-${followSparkTriggers[activeReelsStore.id] || 0}`}
-                            type="button"
+                      {!isCleanReelsMode && (() => {
+                        const displayReelStore = activePartnerReelSlot
+                          ? activePartnerReelSlot.sourceStore
+                          : activeReelsStore;
+                        return (
+                          <div 
+                            className="absolute top-4 left-4 z-45 flex items-center gap-2 bg-transparent max-w-[calc(100%-80px)] cursor-pointer hover:opacity-90 active:scale-95 transition-all duration-200 select-none"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleToggleFollow(activeReelsStore.id);
-                              setReelShareNotification(
-                                isFollowing
-                                  ? "Unfollowed store successfully."
-                                  : "Now following this Boutique! 🎯"
-                              );
-                              setTimeout(() => setReelShareNotification(""), 2000);
+                              if (activePartnerReelSlot) {
+                                setReelsBackTarget(null);
+                              }
+                              setSelectedStore(displayReelStore);
+                              setActiveReelsStore(null);
                             }}
-                            className={`text-[9.5px] px-3.5 py-1.5 rounded-full font-extrabold focus:outline-none cursor-pointer transition shrink-0 border ${
-                              isFollowing
-                                ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500"
-                                : "bg-slate-800/90 hover:bg-slate-750/90 text-white border-white/10"
-                            }`}
+                            title={`View ${displayReelStore.name} Profile`}
                           >
-                            <span className="relative z-10">
-                              {isFollowing ? "Following" : "Follow"}
-                            </span>
-                          </button>
-                        </div>
-                      )}
+                            <div className="w-8 h-8 rounded-full border border-white/30 overflow-hidden shrink-0 bg-white">
+                              {displayReelStore.logo ? (
+                                <img src={displayReelStore.logo} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <DefaultProfileStorePhoto className="w-full h-full object-cover" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-black text-white tracking-wide truncate">
+                                  {displayReelStore.name}
+                                </span>
+                                {displayReelStore.verified && (
+                                  <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                                )}
+                              </div>
+                              {activePartnerReelSlot && (
+                                <span className="block text-[9.5px] font-black text-emerald-300 tracking-wide truncate">
+                                  Partner Pick • From {activePartnerReelSlot.sourceStore.name}
+                                </span>
+                              )}
+                            </div>
+                            {/* Instant Follow feature connected into system */}
+                            <button
+                              key={`reel-btn-${displayReelStore.id}-${followSparkTriggers[displayReelStore.id] || 0}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleFollow(displayReelStore.id);
+                                setReelShareNotification(
+                                  isFollowing
+                                    ? "Unfollowed store successfully."
+                                    : "Now following this Boutique! 🎯"
+                                );
+                                setTimeout(() => setReelShareNotification(""), 2000);
+                              }}
+                              className={`text-[9.5px] px-3.5 py-1.5 rounded-full font-extrabold focus:outline-none cursor-pointer transition shrink-0 border ${
+                                isFollowing
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500"
+                                  : "bg-slate-800/90 hover:bg-slate-750/90 text-white border-white/10"
+                              }`}
+                            >
+                              <span className="relative z-10">
+                                {isFollowing ? "Following" : "Follow"}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      })()}
 
                       {/* Close/Exit Button - styled with high-contrast semi-translucent styling, visible on all screens including PC mode */}
                       {!isCleanReelsMode && (
@@ -19595,6 +21322,67 @@ export default function App() {
                         className="inset-0 absolute w-full h-full bg-black flex items-center justify-center font-sans overflow-hidden"
                       >
                         {(() => {
+                          // Asset-Aware Reels Presentation for Partner Picks without product videos:
+                          // Mode 2: Polished Product-Image Showcase | Mode 3: Native Partner Picks Scene Card
+                          if (activePartnerReelSlot && !currentReel.videoUrl) {
+                            const prod = activePartnerReelSlot.liveProduct;
+                            const srcStore = activePartnerReelSlot.sourceStore;
+                            return (
+                              <div className="relative w-full h-full bg-gradient-to-br from-slate-950 via-emerald-950/80 to-slate-950 flex flex-col items-center justify-center p-6 overflow-hidden">
+                                <img
+                                  src={getOptimizedImageUrl(currentReel.coverUrl, false)}
+                                  alt=""
+                                  referrerPolicy="no-referrer"
+                                  className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-35 pointer-events-none"
+                                />
+                                <div className="relative z-10 w-full max-w-[300px] rounded-3xl overflow-hidden border border-emerald-400/35 bg-black/50 backdrop-blur-xl shadow-2xl p-3 flex flex-col gap-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="px-2.5 py-1 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                                      Partner Pick
+                                    </span>
+                                    <span className="text-[10px] font-bold text-white/85 truncate">
+                                      From {srcStore.name}
+                                    </span>
+                                  </div>
+                                  <div className="aspect-[4/5] w-full rounded-2xl overflow-hidden bg-slate-900 border border-white/10">
+                                    <img
+                                      src={getOptimizedImageUrl(currentReel.coverUrl, false)}
+                                      alt={prod.name}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 px-1">
+                                    <div className="min-w-0 text-left">
+                                      <div className="text-xs font-black text-white truncate">
+                                        {prod.name}
+                                      </div>
+                                      <div className="text-[11px] font-mono font-bold text-emerald-400">
+                                        {prod.price.toLocaleString()} DZD
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openPartnerPickOriginalProduct({
+                                          product: prod,
+                                          sourceStore: srcStore,
+                                          hostStoreId: activeReelsStore.id,
+                                          channelId: "REELS_FEED",
+                                          placementId: activePartnerReelSlot.placement.id,
+                                          partnershipId: activePartnerReelSlot.partnership.id,
+                                        });
+                                      }}
+                                      className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black cursor-pointer shrink-0"
+                                    >
+                                      Open Product
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
                           const parsed = parseSocialVideoUrl(currentReel.videoUrl, isReelMuted);
                           if (parsed.type === "iframe") {
                             return (
@@ -19903,17 +21691,37 @@ export default function App() {
                           <div 
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (activePartnerReelSlot) {
+                                openPartnerPickOriginalProduct({
+                                  product: activePartnerReelSlot.liveProduct,
+                                  sourceStore: activePartnerReelSlot.sourceStore,
+                                  hostStoreId: activeReelsStore.id,
+                                  channelId: "REELS_FEED",
+                                  placementId: activePartnerReelSlot.placement.id,
+                                  partnershipId: activePartnerReelSlot.partnership.id,
+                                });
+                                return;
+                              }
+                              setReelsBackTarget(null);
                               setActiveReelsStore(null);
                               setSelectedProduct(linkedProduct);
                             }}
-                            className="bg-black/55 backdrop-blur-md hover:bg-black/75 rounded-xl p-2 border border-white/20 flex items-center justify-between gap-3 cursor-pointer shrink-0 transition shadow-lg max-w-[280px] pointer-events-auto"
+                            className={`backdrop-blur-md rounded-xl p-2 border flex items-center justify-between gap-3 cursor-pointer shrink-0 transition shadow-lg max-w-[290px] pointer-events-auto ${
+                              activePartnerReelSlot
+                                ? "bg-emerald-950/75 hover:bg-emerald-900/85 border-emerald-400/40"
+                                : "bg-black/55 hover:bg-black/75 border-white/20"
+                            }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-white border border-white/10 flex items-center justify-center p-0.5">
                                 <img src={getOptimizedImageUrl(linkedProduct.imageUrl, true)} alt="" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                               </div>
                               <div className="text-left leading-tight min-w-0">
-                                <span className="text-[9px] font-black text-emerald-400 block uppercase tracking-wider font-mono">Reel Showcase</span>
+                                <span className="text-[9px] font-black text-emerald-400 block uppercase tracking-wider font-mono truncate">
+                                  {activePartnerReelSlot
+                                    ? `Partner Pick • ${activePartnerReelSlot.sourceStore.name}`
+                                    : "Reel Showcase"}
+                                </span>
                                 <span className="text-[11px] font-extrabold text-white truncate block shrink">
                                   {linkedProduct.name}
                                 </span>
@@ -20013,8 +21821,7 @@ export default function App() {
                     {activeReelIndex < reels.length - 1 ? (
                       <div
                         onClick={() => {
-                          setActiveReelIndex(activeReelIndex + 1);
-                          setShowReelCommentsDrawer(false);
+                          advanceReelWithSkipTracking(activeReelIndex + 1);
                         }}
                         className="hidden lg:block w-[180px] xl:w-[200px] aspect-[9/16] rounded-2xl border-2 border-zinc-800 bg-black overflow-hidden relative opacity-30 hover:opacity-70 transition-all duration-350 cursor-pointer scale-90 hover:scale-95 shrink-0"
                       >
@@ -20039,8 +21846,7 @@ export default function App() {
                       type="button"
                       disabled={activeReelIndex === reels.length - 1}
                       onClick={() => {
-                        setActiveReelIndex(prev => Math.min(reels.length - 1, prev + 1));
-                        setShowReelCommentsDrawer(false);
+                        advanceReelWithSkipTracking(Math.min(reels.length - 1, activeReelIndex + 1));
                       }}
                       className="hidden sm:flex items-center text-white/50 hover:text-white disabled:text-zinc-800 disabled:opacity-20 transition-all duration-250 cursor-pointer active:scale-90 scale-100 hover:scale-115 shrink-0 select-none bg-transparent border-0 outline-none"
                       title="Next Reel"
@@ -20478,8 +22284,90 @@ export default function App() {
               comparedProducts={comparedProducts}
               onToggleCompare={handleToggleCompare}
               onSelectProduct={setSelectedProduct}
-              onNotifyMe={(productName, storeName) => {
-                setAlertCount((prev) => prev + 1);
+              stockNotifyRequests={stockNotifyRequests}
+              visitorIpKey={visitorIpKey}
+              partnerPickDiscoverItems={resolvePartnerPicksForHostChannel(
+                activeStore,
+                "DISCOVER_MORE"
+              ).map((slot, idx) => ({
+                product: slot.liveProduct,
+                sourceStore: slot.sourceStore,
+                placementId: slot.placement.id,
+                partnershipId: slot.partnership.id,
+                slotPositionIndex:
+                  slot.placement.selectedOption?.discoverCarouselIndex ?? idx + 2,
+              }))}
+              onOpenPartnerPickDiscoverItem={(item) => {
+                openPartnerPickOriginalProduct({
+                  product: item.product,
+                  sourceStore: item.sourceStore,
+                  hostStoreId: activeStore.id,
+                  channelId: "DISCOVER_MORE",
+                  placementId: item.placementId,
+                  partnershipId: item.partnershipId,
+                });
+              }}
+              onNotifyMe={(productName, storeName, details) => {
+                const resolvedStore = details?.storeId
+                  ? stores.find((s) => s.id === details.storeId)
+                  : stores.find((s) => s.name === storeName);
+                const resolvedProduct = details?.productId
+                  ? resolvedStore?.products?.find((p) => p.id === details.productId)
+                  : resolvedStore?.products?.find((p) => p.name === productName);
+
+                const notifyPayload = {
+                  storeId: details?.storeId || resolvedStore?.id || "",
+                  storeName: resolvedStore?.name || storeName,
+                  productId: details?.productId || resolvedProduct?.id || "",
+                  productName,
+                  productImage:
+                    details?.productImage ||
+                    resolvedProduct?.imageUrl ||
+                    resolvedProduct?.images?.[0],
+                  variantId: details?.variantId,
+                  variantLabel: details?.variantLabel,
+                };
+
+                const activeIpKey = visitorIpKey || "local_visitor";
+                let wasAlreadyRequestedByIp = false;
+
+                if (notifyPayload.storeId && (notifyPayload.productId || notifyPayload.productName)) {
+                  setStockNotifyRequests((prev) => {
+                    const result = recordStockNotifyWithResult(prev, {
+                      ...notifyPayload,
+                      requesterIpKey: activeIpKey,
+                    });
+                    wasAlreadyRequestedByIp = result.alreadyRequestedByIp;
+                    return result.nextList;
+                  });
+
+                  fetch("/api/stock-notify/request", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(notifyPayload),
+                  })
+                    .then((res) => (res.ok ? res.json() : null))
+                    .then((data) => {
+                      if (!data?.ok) return;
+                      if (data.ipKey) {
+                        setVisitorIpKey(data.ipKey);
+                        saveCachedVisitorIpKey(data.ipKey);
+                      }
+                      if (Array.isArray(data.requests)) {
+                        setStockNotifyRequests(
+                          normalizeStockNotifyRequests(data.requests, data.ipKey)
+                        );
+                      }
+                    })
+                    .catch(() => {
+                      // Local optimistic update remains persisted cleanly
+                    });
+                }
+
+                if (!wasAlreadyRequestedByIp) {
+                  setAlertCount((prev) => prev + 1);
+                }
+
                 const cleanId = Math.random().toString(36).substring(2, 9);
                 setToasts((toastsPrev) => [
                   ...toastsPrev,
@@ -20487,12 +22375,12 @@ export default function App() {
                     id: cleanId,
                     orderId: "notify-me",
                     storeName: storeName,
-                    status: "wishlist_restock",
-                    message: currentLanguage === "ar" 
-                      ? `سنقوم بإعلامك فور توفر ${productName}!` 
+                    status: "notify_registered",
+                    message: currentLanguage === "ar"
+                      ? `سنقوم بإعلامك فور توفر ${productName} في المخزون.`
                       : currentLanguage === "en"
-                      ? `We will notify you as soon as ${productName} is back in stock!`
-                      : `Nous vous informerons dès que ${productName} sera de retour en stock!`
+                      ? `We will notify you as soon as ${productName} is back in stock.`
+                      : `Nous vous informerons dès que ${productName} sera de nouveau en stock.`
                   }
                 ]);
                 setTimeout(() => {
@@ -20502,6 +22390,28 @@ export default function App() {
             />
           );
         })()
+      )}
+      {partnerPicksRequestModalTargetStore && (
+        <PartnerPicksRequestModal
+          isOpen={Boolean(partnerPicksRequestModalTargetStore)}
+          onClose={() => setPartnerPicksRequestModalTargetStore(null)}
+          initiatorStore={myStore}
+          targetStore={partnerPicksRequestModalTargetStore}
+          globalConfig={partnerPicksGlobalConfig}
+          allPartnerships={partnerPicksPartnerships}
+          isDarkMode={darkMode}
+          lang={currentLanguage === "ar" ? "AR" : currentLanguage === "fr" ? "FR" : "EN"}
+          onSubmitPartnershipRequest={handleSendPartnerPicksRequest}
+          onOpenMerchantWorkspace={(partnershipId) => {
+            if (partnershipId) {
+              setPartnerPicksInitialPartnershipId(partnershipId);
+            }
+            setPartnerPicksRequestModalTargetStore(null);
+            setSelectedStore(null);
+            setActiveTab("merchant");
+            setMerchantSubTab("partner-picks");
+          }}
+        />
       )}
       {false && selectedProduct && selectedStore && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -23531,85 +25441,99 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating In-App Toast Notification System */}
+      {/* Floating In-App Toast Notification System — Clean Icon-Free Editorial Message Box */}
       <div className="fixed bottom-20 right-6 z-100 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
         <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: 50, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="pointer-events-auto cursor-pointer bg-gradient-to-br from-white via-white to-pink-50/80 dark:from-slate-900 dark:via-slate-900 dark:to-pink-950/20 backdrop-blur-md border border-pink-100/80 dark:border-pink-950/30 rounded-xl p-4 shadow-[0_8px_24px_rgba(244,63,94,0.06)] flex items-start gap-3.5 relative overflow-hidden group hover:shadow-[0_12px_32px_rgba(244,63,94,0.1)] transition-all duration-300"
-            >
-              {/* Highlight accent ring for state - stylish pink shades */}
-              <div 
-                className={`absolute left-0 top-0 bottom-0 w-1 ${
-                  toast.status === "accepted" ? "bg-pink-500" :
-                  toast.status === "wishlist_price_drop" ? "bg-rose-500 font-bold" :
-                  toast.status === "wishlist_restock" ? "bg-pink-400 font-bold" : "bg-pink-300"
-                }`}
-              />
+          {toasts.map((toast) => {
+            const isNotifyRegistered = toast.status === "notify_registered" || toast.orderId === "notify-me";
+            const accentHex =
+              isNotifyRegistered
+                ? "#10b981"
+                : toast.status === "wishlist_price_drop"
+                ? "#A64B45"
+                : toast.status === "wishlist_restock"
+                ? "#806477"
+                : "#4D4040";
 
-              {/* Product preview image or placeholder */}
-              {toast.imageUrl ? (
-                <img 
-                  src={toast.imageUrl} 
-                  alt="" 
-                  className="w-11 h-11 object-cover rounded-xl border border-pink-100 dark:border-pink-950/40 shrink-0 select-none shadow-3xs"
-                  referrerPolicy="no-referrer"
+            const headingLabel =
+              isNotifyRegistered
+                ? (currentLanguage === "ar" ? "تنبيه التوفر مفعّل" : currentLanguage === "fr" ? "Alerte réapprovisionnement activée" : "Restock Notification Set")
+                : toast.status === "accepted"
+                ? (currentLanguage === "ar" ? "تم تأكيد الطلب" : currentLanguage === "fr" ? "Commande confirmée" : "Order Confirmed")
+                : toast.status === "wishlist_price_drop"
+                ? (currentLanguage === "ar" ? "انخفاض السعر" : currentLanguage === "fr" ? "Baisse de prix" : "Price Drop Alert")
+                : toast.status === "wishlist_restock"
+                ? (currentLanguage === "ar" ? "متوفر الآن" : currentLanguage === "fr" ? "De retour en stock" : "Back in Stock")
+                : (currentLanguage === "ar" ? "تم الشحن" : currentLanguage === "fr" ? "Commande expédiée" : "Order Shipped");
+
+            const contextMeta = isNotifyRegistered
+              ? (currentLanguage === "ar" ? "إشعار توفر المنتج" : currentLanguage === "fr" ? "Alerte de disponibilité" : "Back-in-Stock Alert")
+              : `${toast.status.startsWith("wishlist") ? "Product" : "Ref"} #${toast.orderId
+                  .substring(Math.max(0, toast.orderId.length - 8))
+                  .toUpperCase()}`;
+
+            return (
+              <motion.div
+                key={toast.id}
+                data-testid="yume-toast-message-box"
+                initial={{ opacity: 0, y: 28, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.96, transition: { duration: 0.18 } }}
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                className="pointer-events-auto cursor-pointer bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-stone-200/90 dark:border-slate-800 rounded-2xl px-4 py-3.5 shadow-[0_14px_34px_-10px_rgba(15,23,42,0.18)] dark:shadow-[0_14px_34px_-10px_rgba(0,0,0,0.55)] flex flex-col gap-2 relative overflow-hidden group transition-all duration-200 hover:border-stone-300 dark:hover:border-slate-700 font-sans"
+              >
+                {/* Crisp vertical accent indicator */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-1"
+                  style={{ backgroundColor: accentHex }}
                 />
-              ) : (
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                  toast.status === "accepted" ? "bg-pink-50 dark:bg-pink-950/50" :
-                  toast.status === "wishlist_price_drop" ? "bg-rose-50 dark:bg-rose-950/50" : "bg-pink-50 dark:bg-pink-950/50"
-                }`}>
-                  <span className="text-lg">
-                    {toast.status === "accepted" ? "📦" :
-                     toast.status === "wishlist_price_drop" ? "🔥" :
-                     toast.status === "wishlist_restock" ? "🚀" : "🚚"}
-                  </span>
-                </div>
-              )}
 
-              {/* Message Details */}
-              <div className="flex-1 flex flex-col gap-0.5 min-w-0 pr-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-pink-500/80 dark:text-pink-400/80 font-mono">
-                  {toast.status === "accepted" ? "Order Accepted" :
-                   toast.status === "wishlist_price_drop" ? "Price Drop Alert!" :
-                   toast.status === "wishlist_restock" ? "Back in Stock!" : "Order Shipped"}
-                </span>
-                <p className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100 leading-tight">
+                {/* Header Row: Category Label + Clean Text Dismiss (No Icons) */}
+                <div className="flex items-center justify-between gap-3 pl-1.5">
+                  <span
+                    className="text-[11px] font-bold uppercase tracking-wider"
+                    style={{ color: accentHex }}
+                  >
+                    {headingLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+                    }}
+                    className="text-[11px] font-semibold text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 px-1.5 py-0.5 rounded-md hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    {currentLanguage === "ar" ? "إغلاق" : currentLanguage === "fr" ? "Fermer" : "Dismiss"}
+                  </button>
+                </div>
+
+                {/* Primary Message Body */}
+                <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 leading-snug pl-1.5">
                   {toast.message}
                 </p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 font-mono">
-                    {toast.status.startsWith("wishlist") ? "PRODUCT" : "ID"}: #{toast.orderId.substring(Math.max(0, toast.orderId.length - 8)).toUpperCase()}
-                  </span>
-                  <span className="text-slate-300 dark:text-slate-700">•</span>
-                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+
+                {/* Metadata Footer */}
+                <div className="flex items-center justify-between gap-2 pl-1.5 pt-2 border-t border-stone-100 dark:border-slate-800/80 text-[11px] text-stone-500 dark:text-slate-400">
+                  <span className="font-semibold text-stone-700 dark:text-slate-300 truncate">
                     {toast.storeName}
                   </span>
+                  <span className="font-medium shrink-0 text-stone-400 dark:text-slate-500">
+                    {contextMeta}
+                  </span>
                 </div>
-              </div>
 
-              {/* Manual Close Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-                }}
-                className="p-1 text-slate-400 hover:text-pink-500 dark:text-slate-500 dark:hover:text-pink-400 hover:bg-pink-50/50 dark:hover:bg-pink-950/30 rounded-lg transition-all cursor-pointer shadow-3xs group-hover:opacity-100 opacity-80"
-                title="Dismiss"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </motion.div>
-          ))}
+                {/* Subtle Auto-Dismiss Progress Indicator */}
+                <motion.div
+                  initial={{ scaleX: 1 }}
+                  animate={{ scaleX: 0 }}
+                  transition={{ duration: 5, ease: "linear" }}
+                  className="absolute bottom-0 left-0 right-0 h-[2px] origin-left opacity-65"
+                  style={{ backgroundColor: accentHex }}
+                />
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
 

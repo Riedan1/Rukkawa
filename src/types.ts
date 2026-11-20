@@ -264,7 +264,12 @@ export interface MerchantStore {
     permitBuyerModifications?: boolean;
     showSimilarProducts?: boolean;
     offerTimerStyle?: "style_1" | "style_2" | "style_3" | "style_4" | "style_5";
+    dockSettings?: import("./utils/storeMoreOptionsLogic").StoreDockSettings;
   };
+  ownerId?: string;
+  ownerEmail?: string;
+  createdAt?: string;
+  deliveryWilayas?: any[];
   gridLinesHorizontal?: number;
   gridLinesVertical?: number;
   gridSpacingHorizontal?: number;
@@ -1576,8 +1581,312 @@ export interface StorePerformanceMetrics {
   rankingStage: "stage_1_commerce_baseline" | "stage_2_full_telemetry" | "archived_exempt" | "unranked_insufficient_data";
 }
 
+// ============================================================================
+// PARTNER PICKS — RECIPROCAL MERCHANT-TO-MERCHANT COLLABORATION SCHEMAS
+// (100% independent from future paid advertising, CPC/CPM, campaigns & billing)
+// ============================================================================
 
+export type PartnerPickChannelId =
+  | "STORE_BANNER"
+  | "PRODUCT_GRID"
+  | "DISCOVER_MORE"
+  | "REELS_FEED"
+  | "STORIES";
 
+export type ReelsAssetPresentationStrategy =
+  | "AUTO_BEST_ASSET"
+  | "ORIGINAL_VIDEO_ONLY"
+  | "PRODUCT_IMAGE_SHOWCASE"
+  | "NATIVE_SCENE_CARD";
 
+export interface ChannelVisualTokenConfig {
+  showPartnerPicksBadge: boolean;
+  badgeStyle: "minimal_pill" | "icon_only" | "store_avatar_pill";
+  showPartnerStoreAttribution: boolean;
+  showHostContextAttribution: boolean;
+  showDiscountBadge: boolean;
+  showStarRating: boolean;
+  cardScaleDesktop: "compact" | "standard";
+  cardScaleMobile: "compact" | "standard";
+  imageAspectRatio: "native" | "4:5" | "1:1" | "9:16";
+  reelsPresentationStrategy?: ReelsAssetPresentationStrategy;
+}
 
+export interface ChannelFrequencySettings {
+  enabled: boolean;
+  minSecondsBetweenAppearances: number;
+  maxAppearancesPerSession: number;
+  maxAppearancesPerDayPerUser: number;
+  minNativeItemsBeforeFirstInsert?: number;
+  insertionCadenceNativeItems?: number;
+}
 
+export interface IndependentChannelConfig {
+  channelId: PartnerPickChannelId;
+  enabled: boolean;
+  maxDisplayedProducts: number;
+  spatialPlacementRules?: {
+    allowedBannerSlotIndices?: number[];
+    minGridRow?: number;
+    maxGridRow?: number;
+    maxPartnerCardsPerRow?: number;
+    gridPageScope?: "PAGE_1_ONLY" | "ALL_PAGES";
+    allowedDiscoverCarouselSlots?: number[];
+  };
+  sequentialMediaRules?: {
+    requireHostStoriesFeatureEnabled?: boolean;
+    requireActiveNativeStoryPublished?: boolean;
+    forbidStandalonePromotionalStoryRing?: boolean;
+    allowMidSequenceInsertion?: boolean;
+    allowSequenceTailInsertion?: boolean;
+  };
+  frequencyLimits: ChannelFrequencySettings;
+  rotationOverride: {
+    useGlobalRotation: boolean;
+    customRotationMode?: "REFRESH_BASED" | "TIMED_ROTATION";
+    customTimedIntervalSeconds?: number;
+  };
+  visualTokens: ChannelVisualTokenConfig;
+  fairnessChannelWeight: number;
+}
+
+export interface PlanPartnerPicksEntitlement {
+  planId: CanonicalSubscriptionPlanId;
+  enabled: boolean;
+  maxActivePartnerStores: number;
+  maxProductsPerPartnership: number;
+  allowedChannelsAsSource: Record<PartnerPickChannelId, boolean>;
+  allowedChannelsAsHost: Record<PartnerPickChannelId, boolean>;
+  allowCustomPerPartnerProducts: boolean;
+}
+
+export interface GlobalSmartFrequencyAndFatigueConfig {
+  enabled: boolean;
+  maxCrossChannelExposuresPerSession: number;
+  maxCrossChannelExposuresPerDayPerUser: number;
+  sameProductCooldownSeconds: number;
+  samePartnerStoreCooldownSeconds: number;
+  recentlyViewedProductSuppressionSeconds: number;
+  userSpecificSkipDecay: {
+    enabled: boolean;
+    rapidSkipThresholdMs: number;
+    perSkipPriorityMultiplier: number;
+    priorityRecoveryHalfLifeMinutes: number;
+  };
+}
+
+export interface PartnerPicksGlobalConfig {
+  id: "global";
+  featureEnabled: boolean;
+  maxSimultaneousPartnerStores: number;
+  defaultRotationMode: "REFRESH_BASED" | "TIMED_ROTATION";
+  timedRotationEnabled: boolean;
+  timedRotationIntervalSeconds: number;
+  channels: Record<PartnerPickChannelId, IndependentChannelConfig>;
+  planEntitlements: Record<CanonicalSubscriptionPlanId, PlanPartnerPicksEntitlement>;
+  smartFrequency: GlobalSmartFrequencyAndFatigueConfig;
+  updatedAt: string;
+  updatedByAdminId: string;
+}
+
+export interface PartnerPicksGridCoordinate {
+  row: number;
+  col: number;
+}
+
+export interface PartnerPicksStaffPermissions {
+  authorizedStaffIds: string[];
+  canSendRequests: boolean;
+  canAcceptRejectRequests: boolean;
+  canManageSharedProducts: boolean;
+  canProposeAndSelectPlacements: boolean;
+  canFinalApprovePlacements: boolean;
+}
+
+export interface MerchantPartnerPicksProfile {
+  storeId: string;
+  ownerUid?: string;
+  defaultSharedProductIds: string[];
+  partnershipProductMode: Record<string, "DEFAULT_COMMON" | "CUSTOM_PER_PARTNER">;
+  customProductIdsByPartnership: Record<string, string[]>;
+  hostChannelConsent: Record<PartnerPickChannelId, boolean>;
+  hostSpatialAllowedSlots: {
+    bannerSlotIndices: number[];
+    gridCoordinates: PartnerPicksGridCoordinate[];
+    discoverCarouselIndices: number[];
+  };
+  hostSequentialMediaConsent: {
+    reelsInsertionEnabled: boolean;
+    storiesInsertionEnabled: boolean;
+  };
+  staffPermissions: PartnerPicksStaffPermissions;
+  updatedAt: string;
+}
+
+export type PartnerPicksPartnershipStatus =
+  | "PENDING_REQUEST"
+  | "ACCEPTED"
+  | "TERMS_PENDING"
+  | "PLACEMENT_PENDING"
+  | "ACTIVE"
+  | "REJECTED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "SUSPENDED";
+
+export interface PartnerPicksAgreementTerms {
+  durationDays: number;
+  enabledChannelsAOnB: Record<PartnerPickChannelId, boolean>;
+  enabledChannelsBOnA: Record<PartnerPickChannelId, boolean>;
+  agreedByStoreA: boolean;
+  agreedByStoreB: boolean;
+  agreedAtStoreA?: string | null;
+  agreedAtStoreB?: string | null;
+}
+
+export interface PartnerPicksPartnership {
+  id: string;
+  storeAId: string;
+  storeAName: string;
+  storeAOwnerUid?: string;
+  storeBId: string;
+  storeBName: string;
+  storeBOwnerUid?: string;
+  initiatedByStoreId: string;
+  status: PartnerPicksPartnershipStatus;
+  requestMessage?: string;
+  agreementTerms: PartnerPicksAgreementTerms;
+  activatedAt?: string | null;
+  expiresAt?: string | null;
+  suspendedByAdminId?: string | null;
+  suspendedReason?: string | null;
+  previousStatusBeforeSuspension?: PartnerPicksPartnershipStatus | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PlacementTrafficLight = "GREEN" | "YELLOW" | "RED";
+
+export type PlacementLifecycleState =
+  | "PROPOSED_AWAITING_HOST_SELECTION"
+  | "HOST_SELECTED_AWAITING_FINAL_APPROVAL"
+  | "APPROVED_LIVE"
+  | "REJECTED_BY_HOST"
+  | "REJECTED_BY_PROPOSER"
+  | "AUTO_PAUSED_OUT_OF_STOCK"
+  | "PAUSED_OWNER_HIDDEN"
+  | "PAUSED_OWNER_DISABLED"
+  | "PAUSED_OWNER_ARCHIVED"
+  | "INVALIDATED_PRODUCT_REMOVED"
+  | "SUSPENDED_BY_PLATFORM_ADMIN";
+
+export interface PartnerPickProposedOption {
+  optionId: string;
+  channelId: PartnerPickChannelId;
+  bannerSlotIndex?: number;
+  gridCoordinate?: PartnerPicksGridCoordinate;
+  discoverCarouselIndex?: number;
+  sequentialPositionHint?: "EARLY" | "MID_SEQUENCE" | "TAIL";
+  label: string;
+}
+
+export interface PartnerPickPlacementActivityEntry {
+  id: string;
+  timestamp: string;
+  actorStoreId: string;
+  actorUid?: string;
+  actorRole: "SOURCE_MERCHANT" | "HOST_MERCHANT" | "SYSTEM" | "PLATFORM_ADMIN";
+  action:
+    | "PROPOSED_OPTIONS"
+    | "HOST_SELECTED_OPTION"
+    | "PROPOSER_FINAL_APPROVED"
+    | "REJECTED_BY_HOST"
+    | "REJECTED_BY_PROPOSER"
+    | "AUTO_PAUSED_OUT_OF_STOCK"
+    | "AUTO_RESUMED_IN_STOCK"
+    | "PAUSED_OWNER_HIDDEN"
+    | "PAUSED_OWNER_DISABLED"
+    | "PAUSED_OWNER_ARCHIVED"
+    | "INVALIDATED_PRODUCT_REMOVED"
+    | "SUSPENDED_BY_ADMIN"
+    | "REINSTATED_BY_ADMIN";
+  selectedOptionId?: string | null;
+  note?: string;
+}
+
+export interface PartnerPickProductPlacement {
+  id: string;
+  partnershipId: string;
+  sourceStoreId: string;
+  sourceStoreOwnerUid?: string;
+  hostStoreId: string;
+  hostStoreOwnerUid?: string;
+  productId: string;
+  channelId: PartnerPickChannelId;
+  proposedOptions: PartnerPickProposedOption[];
+  selectedOptionId: string | null;
+  selectedOption: PartnerPickProposedOption | null;
+  hostSelectedAt?: string | null;
+  proposerFinalApproved: boolean;
+  proposerFinalApprovedAt?: string | null;
+  trafficLight: PlacementTrafficLight;
+  lifecycleState: PlacementLifecycleState;
+  activityHistory: PartnerPickPlacementActivityEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerPickChannelExposureCounters {
+  opportunities: number;
+  impressions: number;
+  uniqueReach: number;
+  clicks: number;
+  skips: number;
+  weightedScore: number;
+  activeExposureDurationSeconds: number;
+}
+
+export interface PartnerPickDirectionalExposureSummary {
+  sourceStoreId: string;
+  hostStoreId: string;
+  byChannel: Record<PartnerPickChannelId, PartnerPickChannelExposureCounters>;
+  totalOpportunities: number;
+  totalImpressions: number;
+  totalUniqueReach: number;
+  totalClicks: number;
+  totalSkips: number;
+  totalWeightedScore: number;
+  opportunityFillRatePercent: number;
+}
+
+export interface PartnerPicksBidirectionalExposureLedger {
+  partnershipId: string;
+  storeAId: string;
+  storeBId: string;
+  directionAOnB: PartnerPickDirectionalExposureSummary;
+  directionBOnA: PartnerPickDirectionalExposureSummary;
+  updatedAt: string;
+}
+
+export type PartnerPickAnalyticsEventType =
+  | "opportunity"
+  | "impression"
+  | "click"
+  | "skip"
+  | "original_product_open";
+
+export interface PartnerPicksChannelAnalyticsEvent {
+  id: string;
+  idempotencyKey: string;
+  partnershipId: string;
+  placementId: string;
+  hostStoreId: string;
+  sourceStoreId: string;
+  channelId: PartnerPickChannelId;
+  productId: string;
+  eventType: PartnerPickAnalyticsEventType;
+  visitorHash: string;
+  rotationEpoch: number;
+  exposureDurationMs?: number;
+  timestamp: string;
+}

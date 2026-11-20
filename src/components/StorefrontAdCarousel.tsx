@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { StorefrontAd, Product } from "../types";
+import { isLightColor } from "../utils/brandIdentityColorSystem";
 
 interface StorefrontAdCarouselProps {
   ads?: StorefrontAd[];
@@ -289,7 +290,7 @@ export const StorefrontAdCarousel: React.FC<StorefrontAdCarouselProps> = ({
     return parts.map((part, i) => {
       if (/(\d+%\s*(?:off|OFF)|Flash Sale!|EXTRA \d+%\s*(?:off|OFF)?|Promo Code:?\s*\w+|58 Wilayas|Cash-on-Delivery)/i.test(part)) {
         return (
-          <span key={i} className="font-extrabold text-amber-300 drop-shadow-xs">
+          <span key={i} className={`font-extrabold drop-shadow-xs ${isLightColor(currentSlideColor || currentAd?.bgColor || "#4a0e2e") ? "text-amber-700" : "text-amber-300"}`}>
             {part}
           </span>
         );
@@ -301,6 +302,7 @@ export const StorefrontAdCarousel: React.FC<StorefrontAdCarouselProps> = ({
   if (!currentAd) return null;
 
   const bgThemeColor = currentSlideColor || currentAd.bgColor;
+  const isLightBanner = isLightColor(bgThemeColor);
 
   return (
     <div 
@@ -314,11 +316,15 @@ export const StorefrontAdCarousel: React.FC<StorefrontAdCarouselProps> = ({
     >
       {/* Outer Banner Card Container with matching yume aesthetic */}
       <div 
-        className="relative overflow-hidden rounded-2xl border py-4 sm:py-5 px-4 sm:px-6 shadow-md hover:shadow-[var(--glow-shadow)] transition-all duration-300 text-white w-full min-h-[175px] sm:min-h-[160px] flex items-center"
+        className={`relative overflow-hidden rounded-2xl border py-4 sm:py-5 px-4 sm:px-6 shadow-md hover:shadow-[var(--glow-shadow)] transition-all duration-300 w-full min-h-[175px] sm:min-h-[160px] flex items-center ${
+          isLightBanner ? "text-slate-900" : "text-white"
+        }`}
         style={{ 
           backgroundColor: bgThemeColor,
-          borderColor: `color-mix(in srgb, ${bgThemeColor} 90%, black)`,
-          "--glow-shadow": `0 20px 45px -4px color-mix(in srgb, ${bgThemeColor} 60%, transparent)`
+          borderColor: isLightBanner ? "rgba(15, 23, 42, 0.14)" : `color-mix(in srgb, ${bgThemeColor} 90%, black)`,
+          "--glow-shadow": isLightBanner
+            ? "0 20px 45px -4px rgba(15, 23, 42, 0.14)"
+            : `0 20px 45px -4px color-mix(in srgb, ${bgThemeColor} 60%, transparent)`
         } as React.CSSProperties}
       >
         {/* Subtle Ambient Background Highlight Texture */}
@@ -364,50 +370,56 @@ export const StorefrontAdCarousel: React.FC<StorefrontAdCarouselProps> = ({
                 {/* Badges: Elite Partner / Sponsored / Tag */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span 
-                    className="text-[8px] font-black tracking-widest bg-white font-mono px-1.5 py-0.5 rounded border shadow-2xs"
-                    style={{ 
-                      color: bgThemeColor, 
-                      borderColor: `color-mix(in srgb, ${bgThemeColor} 30%, transparent)` 
-                    }}
+                    className={`text-[8px] font-black tracking-widest font-mono px-1.5 py-0.5 rounded border shadow-2xs ${
+                      isLightBanner ? "bg-slate-900 text-white border-slate-900" : "bg-white"
+                    }`}
+                    style={
+                      isLightBanner
+                        ? undefined
+                        : { 
+                            color: bgThemeColor, 
+                            borderColor: `color-mix(in srgb, ${bgThemeColor} 30%, transparent)` 
+                          }
+                    }
                   >
                     {currentAd.badge || "Elite Partner"}
                   </span>
-                  <span className="text-[8px] font-bold text-slate-100/90 tracking-wider font-mono">
+                  <span className={`text-[8px] font-bold tracking-wider font-mono ${isLightBanner ? "text-slate-600" : "text-slate-100/90"}`}>
                     {currentAd.sponsorText || "Sponsored"}
                   </span>
                   {activeAds.length > 1 && (
-                    <span className="text-[8px] font-mono text-white/50 bg-black/20 px-1.5 py-0.5 rounded-full ml-auto sm:ml-0">
+                    <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded-full ml-auto sm:ml-0 ${isLightBanner ? "text-slate-700 bg-slate-900/10" : "text-white/50 bg-black/20"}`}>
                       {currentIndex + 1} / {activeAds.length}
                     </span>
                   )}
                 </div>
 
                 {/* Ad Headline / Title */}
-                <h5 className="text-sm font-black text-white tracking-tight mt-1.5 line-clamp-1">
+                <h5 className={`text-sm font-black tracking-tight mt-1.5 line-clamp-1 ${isLightBanner ? "text-slate-900" : "text-white"}`}>
                   {currentAd.title}
                 </h5>
 
                 {/* Promo Copy */}
-                <p className="text-[11px] md:text-[12px] font-semibold text-white/90 leading-tight mt-1 max-w-xs sm:max-w-md line-clamp-2">
+                <p className={`text-[11px] md:text-[12px] font-semibold leading-tight mt-1 max-w-xs sm:max-w-md line-clamp-2 ${isLightBanner ? "text-slate-700" : "text-white/90"}`}>
                   {renderStyledDescription(currentAd.shortDescription)}
                 </p>
 
                 {/* Countdown Timer with pulsing styling */}
                 <div className="flex items-center gap-1.5 mt-2.5">
-                  <span className="text-[9px] font-bold tracking-wider text-white/80 font-mono mr-1 flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5 text-amber-300" />
+                  <span className={`text-[9px] font-bold tracking-wider font-mono mr-1 flex items-center gap-1 ${isLightBanner ? "text-slate-600" : "text-white/80"}`}>
+                    <Clock className={`w-2.5 h-2.5 ${isLightBanner ? "text-amber-600" : "text-amber-300"}`} />
                     Offer Ends In:
                   </span>
                   <div className="flex items-center gap-1">
-                    <span className="bg-black/25 px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight text-amber-200 shadow-inner">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight shadow-inner ${isLightBanner ? "bg-slate-900 text-amber-300" : "bg-black/25 text-amber-200"}`}>
                       {String(countdown.hours).padStart(2, '0')}
                     </span>
-                    <span className="text-xs font-bold opacity-70 text-slate-300">:</span>
-                    <span className="bg-black/25 px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight text-amber-200 shadow-inner">
+                    <span className={`text-xs font-bold opacity-70 ${isLightBanner ? "text-slate-600" : "text-slate-300"}`}>:</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight shadow-inner ${isLightBanner ? "bg-slate-900 text-amber-300" : "bg-black/25 text-amber-200"}`}>
                       {String(countdown.minutes).padStart(2, '0')}
                     </span>
-                    <span className="text-xs font-bold opacity-70 text-slate-300">:</span>
-                    <span className="bg-black/25 px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight text-amber-200 animate-pulse shadow-inner">
+                    <span className={`text-xs font-bold opacity-70 ${isLightBanner ? "text-slate-600" : "text-slate-300"}`}>:</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold font-mono tracking-tight animate-pulse shadow-inner ${isLightBanner ? "bg-slate-900 text-amber-300" : "bg-black/25 text-amber-200"}`}>
                       {String(countdown.seconds).padStart(2, '0')}
                     </span>
                   </div>
@@ -431,7 +443,11 @@ export const StorefrontAdCarousel: React.FC<StorefrontAdCarouselProps> = ({
                   <a 
                     href={currentAd.secondaryDestinationLink || "#partner-shops-list"}
                     onClick={handleSecondaryClick}
-                    className="inline-flex items-center gap-1 bg-white/15 hover:bg-white/25 active:bg-white/30 font-bold text-[10px] px-3.5 py-2 rounded-full shadow-inner transition-all hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border border-white/20 hover:border-white/30 text-white"
+                    className={`inline-flex items-center gap-1 font-bold text-[10px] px-3.5 py-2 rounded-full shadow-inner transition-all hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border ${
+                      isLightBanner
+                        ? "bg-slate-900/[0.08] hover:bg-slate-900/[0.14] active:bg-slate-900/20 border-slate-900/15 hover:border-slate-900/25 text-slate-900"
+                        : "bg-white/15 hover:bg-white/25 active:bg-white/30 border-white/20 hover:border-white/30 text-white"
+                    }`}
                   >
                     <span>{currentAd.secondaryCtaText}</span>
                     <ChevronRight className="w-2.5 h-2.5" />
@@ -494,7 +510,9 @@ export const StorefrontAdCarousel: React.FC<StorefrontAdCarouselProps> = ({
                       </div>
 
                       {/* Product Name (Sleek minimalist caption below pedestal) */}
-                      <span className="text-[9.5px] sm:text-[10.5px] font-medium text-white/85 group-hover/item:text-amber-200 truncate w-full text-center mt-1.5 tracking-tight px-1 transition-colors block">
+                      <span className={`text-[9.5px] sm:text-[10.5px] font-medium truncate w-full text-center mt-1.5 tracking-tight px-1 transition-colors block ${
+                        isLightBanner ? "text-slate-700 group-hover/item:text-slate-950" : "text-white/85 group-hover/item:text-amber-200"
+                      }`}>
                         {prod.name}
                       </span>
                     </div>
